@@ -1,0 +1,123 @@
+"""Domain aggregates (DDD) as pydantic models.
+
+These are the persisted shapes and the API response shapes — one definition,
+validated on the way in and serialized on the way out. Mirrors the schema in
+``references/data-model.md``.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+from pydantic import BaseModel, Field
+
+from backend.coldpath.scoring import DIMENSIONS
+
+
+class Role(StrEnum):
+    LEARNER = "learner"
+    COACH = "coach"
+
+
+class SessionMode(StrEnum):
+    FREE = "free"
+    INTERVIEW = "interview"
+    IELTS = "ielts"
+    BUSINESS = "business"
+    GENERAL = "general"
+
+
+class User(BaseModel):
+    """LearnerProfile root — the durable per-user record."""
+
+    user_id: str
+    display_name: str
+    created_at: str
+    current_level: int = 0
+    streak_days: int = 0
+    settings_json: str | None = None
+
+
+class Session(BaseModel):
+    session_id: str
+    user_id: str
+    mode: SessionMode = SessionMode.FREE
+    started_at: str
+    ended_at: str | None = None
+    difficulty: float | None = None
+
+
+class Utterance(BaseModel):
+    utterance_id: str
+    session_id: str
+    user_id: str
+    role: Role
+    audio_path: str | None = None
+    transcript: str | None = None
+    stt_confidence: float | None = None
+    start_ms: int | None = None
+    end_ms: int | None = None
+    created_at: str
+
+
+class Assessment(BaseModel):
+    """Aggregated, versioned per-dimension scores. Append-only — never mutated."""
+
+    assessment_id: str
+    user_id: str
+    session_id: str | None = None
+    utterance_id: str | None = None
+    scoring_model_version: str
+    # per-dimension scores 0-100
+    pronunciation: float | None = None
+    grammar: float | None = None
+    vocabulary: float | None = None
+    listening: float | None = None
+    fluency: float | None = None
+    confidence: float | None = None
+    coherence: float | None = None
+    relevance: float | None = None
+    overall: float | None = None
+    created_at: str
+
+    def dimensions(self) -> dict[str, float | None]:
+        return {d: getattr(self, d) for d in DIMENSIONS}
+
+
+class EvaluatorOutput(BaseModel):
+    """Raw evaluator payload, kept separate from aggregated scores for recompute."""
+
+    id: str
+    utterance_id: str | None = None
+    evaluator: str
+    version: str
+    payload_json: str
+    created_at: str
+
+
+class GapSnapshot(BaseModel):
+    id: str
+    user_id: str
+    taken_at: str
+    gaps_json: str  # ranked {skill: severity}
+
+
+class SkillPoint(BaseModel):
+    """One point on a skill trend line."""
+
+    created_at: str
+    value: float
+
+
+class ProgressOverview(BaseModel):
+    """Everything the dashboard needs for a user's headline view."""
+
+    user_id: str
+    display_name: str
+    current_level: int
+    streak_days: int
+    latest_overall: float | None = None
+    latest_scores: dict[str, float | None] = Field(default_factory=dict)
+    assessments_count: int = 0
+    next_level: int | None = None
+    estimated_days_to_next_level: float | None = None

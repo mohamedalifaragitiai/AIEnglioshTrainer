@@ -1,10 +1,12 @@
-"""FastAPI application — Phase 0 skeleton.
+"""FastAPI application.
 
-Boots the ResourceGuard through the lifespan so the machine is observable from the
-first commit: ``/metrics`` exposes Prometheus data (including every guard signal),
-``/healthz`` reports liveness, and ``/guard`` reports the live degradation state.
+Boots the ResourceGuard and the SQLite store through the lifespan so the machine is
+observable and persistent from startup: ``/metrics`` exposes Prometheus data
+(including every guard signal), ``/healthz`` reports liveness, ``/guard`` reports the
+live degradation state, and the ``/users`` / ``/sessions`` / progress routers expose
+per-user profiles and longitudinal history.
 
-No models are loaded in Phase 0. Model loading (Phase 2) will go through
+No models are loaded yet. Model loading (Phase 2) will go through
 ``guard.check_startup_budget`` and refuse to start if the minimum set won't fit.
 """
 
@@ -14,9 +16,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
 
+from backend.api import progress as progress_router
+from backend.api import sessions as sessions_router
+from backend.api import users as users_router
 from backend.core.logging import configure_logging, get_logger
 from backend.core.metrics import CONTENT_TYPE, render_metrics
 from backend.core.resource_guard import PsutilNvmlSampler, ResourceGuard
+from backend.persistence.db import Database
+from backend.persistence.migrations import migrate
 from config.settings import get_settings
 
 settings = get_settings()
@@ -30,12 +37,23 @@ async def lifespan(app: FastAPI):
     guard = ResourceGuard(sampler=sampler, settings=settings)
     await guard.start()
 
-    # Report the startup VRAM budget (informational in Phase 0 — no models yet).
+    # Report the startup VRAM budget (informational for now — no models yet).
     fits, budget_msg = guard.check_startup_budget(min_vram_gb=3.5)
     log.info("startup_budget", fits=fits, detail=budget_msg)
 
+    # Persistence: open the SQLite store (WAL) and apply migrations.
+    db = Database(settings.resolved_db_path)
+    applied = migrate(db)
+    log.info(
+        "db_ready",
+        path=str(settings.resolved_db_path),
+        journal_mode=db.journal_mode(),
+        migrations_applied=applied,
+    )
+
     app.state.guard = guard
     app.state.sampler = sampler
+    app.state.db = db
     log.info(
         "app_started",
         host=settings.app_host,
@@ -82,3 +100,9 @@ async def guard_state() -> dict:
         "soft": guard.soft,
         "usage": {k: (round(v, 4) if v is not None else None) for k, v in snap.ratios.items()},
     }
+
+
+# Per-user profiles, sessions/assessments, and progress queries.
+app.include_router(users_router.router)
+app.include_router(sessions_router.router)
+app.include_router(progress_router.router)
