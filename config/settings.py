@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     app_name: str = "english-coach"
     log_level: str = "INFO"
     log_json: bool = True  # structured JSON logs; set false for human-readable dev logs
+    # Origins allowed to call the API (the Next.js dev server). JSON list or comma
+    # string via COACH_CORS_ORIGINS.
+    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     # --- Resource governance (the 96% ceiling) -----------------------------
     # Hard per-resource ceiling. Crossing it sustained risks a machine freeze.

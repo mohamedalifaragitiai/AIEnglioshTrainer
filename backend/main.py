@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.websockets import WebSocket
 
@@ -170,6 +171,14 @@ async def guard_state() -> dict:
         "soft": guard.soft,
         "usage": {k: (round(v, 4) if v is not None else None) for k, v in snap.ratios.items()},
     }
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.websocket("/ws/session")
