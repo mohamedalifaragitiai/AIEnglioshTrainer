@@ -42,11 +42,28 @@ cp .env.example .env    # optional: override defaults
 uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-Then:
+Then open **http://127.0.0.1:8000/** — the built-in web UI (dashboard + live
+practice). Other endpoints:
+- UI:      http://127.0.0.1:8000/          (dashboard, radar/trend charts, live mic)
 - Health:  http://127.0.0.1:8000/healthz
-- Metrics: http://127.0.0.1:8000/metrics  (Prometheus exposition)
-- Guard:   http://127.0.0.1:8000/guard    (live degradation level + usage)
+- Metrics: http://127.0.0.1:8000/metrics   (Prometheus exposition)
+- Guard:   http://127.0.0.1:8000/guard     (live degradation level + usage)
+- Models:  http://127.0.0.1:8000/models    (status + VRAM budget)
 - API docs: http://127.0.0.1:8000/docs
+
+To see the dashboard populated immediately: `uv run python scripts/seed_user.py`
+(creates **Abu Ali** with demo history), or click **Load demo data** in the UI.
+
+### Frontend
+
+The UI is a single self-contained page (`frontend/index.html`) served by the app —
+**no Node, no build step, no CDN** (inline CSS/JS + hand-drawn canvas charts), in
+keeping with the fully-offline rule. It has a **Dashboard** (level/streak/overall/ETA
+tiles, an 8-skill radar, an overall-trend line, and a recent-assessments table) and a
+**Practice** tab (mic → WebSocket `/ws/session` → streamed transcript/reply/TTS
+audio). Live speaking needs models enabled (see *Enabling models*); the dashboard
+works from stored/seeded data alone. A polished Next.js + Tailwind version is the
+planned Phase 6 upgrade.
 
 ## Prove the 96% ceiling (before any model is loaded)
 

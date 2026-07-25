@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI English Coach</title>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1e293b; --panel2: #273449; --line: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #2dd4bf; --accent2: #818cf8;
+    --good: #34d399; --warn: #fbbf24; --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; padding: 14px 22px;
+    background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  header h1 span { color: var(--accent); }
+  .spacer { flex: 1; }
+  select, button, input {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; font-size: 14px;
+  }
+  button { cursor: pointer; transition: background .15s, border-color .15s; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #06201c; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #5eead4; }
+  button.danger { border-color: var(--bad); color: var(--bad); }
+  .pill { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--panel2); color: var(--muted); }
+  .pill.on { background: #064e3b; color: var(--good); }
+  .pill.off { background: #3f1d1d; color: var(--bad); }
+  nav { display: flex; gap: 6px; padding: 12px 22px 0; }
+  nav button { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 14px; color: var(--muted); }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+  main { padding: 20px 22px 40px; max-width: 1100px; margin: 0 auto; }
+  .grid { display: grid; gap: 16px; }
+  .tiles { grid-template-columns: repeat(4, 1fr); }
+  .cols { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 760px) { .tiles { grid-template-columns: repeat(2,1fr); } .cols { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h3 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
+  .tile .v { font-size: 30px; font-weight: 700; }
+  .tile .l { color: var(--muted); font-size: 13px; }
+  .tile .sub { color: var(--accent); font-size: 12px; margin-top: 2px; }
+  canvas { width: 100%; height: auto; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 16px; }
+  .conv { display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 44vh; overflow-y: auto; padding: 4px; }
+  .msg { padding: 9px 13px; border-radius: 12px; max-width: 78%; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: #1e3a8a33; border: 1px solid #3b5bdb55; }
+  .msg.coach { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); }
+  .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .dot.rec { background: var(--bad); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  .banner { padding: 10px 14px; border-radius: 10px; background: #422006; border: 1px solid #854d0e; color: #fcd34d; font-size: 13px; margin-bottom: 16px; }
+  .hidden { display: none; }
+  code { background: var(--panel2); padding: 1px 6px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AI English <span>Coach</span></h1>
+  <span class="pill" id="modelsPill">models: …</span>
+  <div class="spacer"></div>
+  <label class="muted" for="userSel">Learner</label>
+  <select id="userSel"></select>
+  <button id="newUserBtn">+ New</button>
+  <button id="seedBtn">Load demo data</button>
+</header>
+
+<nav>
+  <button data-tab="dash" class="active">Dashboard</button>
+  <button data-tab="practice">Practice (live)</button>
+</nav>
+
+<main>
+  <!-- DASHBOARD -->
+  <section id="dash">
+    <div id="dashEmpty" class="banner hidden">
+      No assessments yet for this learner. Click <b>Load demo data</b> above, or use
+      <b>Practice</b> (needs models enabled) to record real turns.
+    </div>
+    <div class="grid tiles" id="tiles"></div>
+    <div style="height:16px"></div>
+    <div class="grid cols">
+      <div class="card">
+        <h3>Skill radar (latest)</h3>
+        <canvas id="radar" width="460" height="360"></canvas>
+      </div>
+      <div class="card">
+        <h3>Overall trend</h3>
+        <canvas id="trend" width="460" height="360"></canvas>
+      </div>
+    </div>
+    <div style="height:16px"></div>
+    <div class="card">
+      <h3>Recent assessments</h3>
+      <div style="overflow-x:auto"><table id="assessTable"></table></div>
+    </div>
+  </section>
+
+  <!-- PRACTICE -->
+  <section id="practice" class="hidden">
+    <div class="banner" id="practiceNote">
+      Live speaking needs the STT/LLM/TTS models running (<code>COACH_LOAD_MODELS=true</code>
+      + a vLLM server). Without them the mic still streams and the server replies with an
+      actionable error — the plumbing works; only the models are off.
+    </div>
+    <div class="card">
+      <div class="row" style="margin-bottom:14px">
+        <button id="micBtn" class="primary">🎙 Start speaking</button>
+        <span class="dot" id="recDot"></span>
+        <span class="muted" id="wsStatus">disconnected</span>
+        <div class="spacer"></div>
+        <span class="muted" id="turnTimings"></span>
+      </div>
+      <div class="conv" id="conv"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = {
+  async get(p) { const r = await fetch(p); if (!r.ok) throw new Error(await r.text()); return r.json(); },
+  async post(p, body) { const r = await fetch(p, { method: 'POST', headers: {'Content-Type':'application/json'}, body: body?JSON.stringify(body):null }); if (!r.ok) throw new Error(await r.text()); return r.json(); },
+};
+const DIMS = ["pronunciation","grammar","vocabulary","listening","fluency","confidence","coherence","relevance"];
+let currentUser = null;
+
+// ---------- boot ----------
+async function boot() {
+  try {
+    const models = await api.get('/models');
+    const anyLoaded = models.some(m => m.status === 'loaded');
+    const pill = $('#modelsPill');
+    pill.textContent = 'models: ' + (anyLoaded ? 'loaded' : 'off');
+    pill.className = 'pill ' + (anyLoaded ? 'on' : 'off');
+  } catch (e) { $('#modelsPill').textContent = 'models: ?'; }
+  await refreshUsers();
+}
+
+async function refreshUsers() {
+  const users = await api.get('/users');
+  const sel = $('#userSel');
+  sel.innerHTML = '';
+  if (!users.length) {
+    const o = document.createElement('option'); o.textContent = '(no learners — click + New)'; o.value = '';
+    sel.appendChild(o); currentUser = null; renderDashboard(); return;
+  }
+  for (const u of users) {
+    const o = document.createElement('option'); o.value = u.user_id; o.textContent = `${u.display_name} (${u.user_id})`;
+    sel.appendChild(o);
+  }
+  currentUser = currentUser && users.find(u=>u.user_id===currentUser) ? currentUser : users[0].user_id;
+  sel.value = currentUser;
+  renderDashboard();
+}
+
+$('#userSel').addEventListener('change', e => { currentUser = e.target.value; renderDashboard(); });
+$('#newUserBtn').addEventListener('click', async () => {
+  const id = prompt('New learner id (slug, e.g. abu_ali):'); if (!id) return;
+  const name = prompt('Display name:', id) || id;
+  try { await api.post('/users', { user_id: id.trim(), display_name: name.trim() }); currentUser = id.trim(); await refreshUsers(); }
+  catch (e) { alert('Could not create user:\n' + e.message); }
+});
+$('#seedBtn').addEventListener('click', async () => {
+  if (!currentUser) { alert('Create or select a learner first.'); return; }
+  try { await api.post(`/dev/users/${currentUser}/seed-demo`); renderDashboard(); }
+  catch (e) { alert('Seed failed:\n' + e.message); }
+});
+
+// ---------- tabs ----------
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  const tab = b.dataset.tab;
+  $('#dash').classList.toggle('hidden', tab !== 'dash');
+  $('#practice').classList.toggle('hidden', tab !== 'practice');
+  if (tab === 'dash') renderDashboard();
+}));
+
+// ---------- dashboard ----------
+async function renderDashboard() {
+  if (!currentUser) { $('#tiles').innerHTML = ''; $('#assessTable').innerHTML = ''; clearCanvas('radar'); clearCanvas('trend'); return; }
+  let ov, assess, trend;
+  try {
+    ov = await api.get(`/users/${currentUser}/progress`);
+    assess = await api.get(`/users/${currentUser}/assessments?limit=200`);
+    trend = await api.get(`/users/${currentUser}/progress/trend?skill=overall&days=3650`);
+  } catch (e) { return; }
+
+  $('#dashEmpty').classList.toggle('hidden', assess.length > 0);
+
+  const eta = ov.estimated_days_to_next_level;
+  const tiles = [
+    { l: 'Level (0–5)', v: ov.current_level, sub: ov.next_level != null ? `next: ${ov.next_level}` : 'top level' },
+    { l: 'Streak', v: ov.streak_days + 'd', sub: '' },
+    { l: 'Latest overall', v: ov.latest_overall != null ? Math.round(ov.latest_overall) : '—', sub: `${ov.assessments_count} assessments` },
+    { l: 'Est. days to next level', v: eta != null ? eta : '—', sub: eta != null ? 'at current pace' : 'need more data / flat' },
+  ];
+  $('#tiles').innerHTML = tiles.map(t =>
+    `<div class="card tile"><div class="l">${t.l}</div><div class="v">${t.v}</div><div class="sub">${t.sub}</div></div>`).join('');
+
+  drawRadar('radar', ov.latest_scores || {});
+  drawTrend('trend', trend);
+
+  const rows = assess.slice(-12).reverse();
+  $('#assessTable').innerHTML =
+    `<tr><th>when</th><th>overall</th>${DIMS.map(d=>`<th>${d.slice(0,4)}</th>`).join('')}<th>ver</th></tr>` +
+    rows.map(a => `<tr><td class="muted">${fmtDate(a.created_at)}</td><td><b>${a.overall!=null?Math.round(a.overall):'—'}</b></td>` +
+      DIMS.map(d => `<td>${a[d]!=null?Math.round(a[d]):'·'}</td>`).join('') +
+      `<td class="muted">${a.scoring_model_version}</td></tr>`).join('');
+}
+
+function fmtDate(iso) { try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch { return iso.slice(0,10); } }
+function clearCanvas(id){ const c=$('#'+id); c.getContext('2d').clearRect(0,0,c.width,c.height); }
+
+function drawRadar(id, scores) {
+  const c = $('#'+id), ctx = c.getContext('2d'); const W=c.width,H=c.height; ctx.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2+6, R=Math.min(W,H)/2-46, n=DIMS.length;
+  ctx.strokeStyle='#334155'; ctx.fillStyle='#94a3b8'; ctx.font='11px system-ui';
+  for (let ring=1; ring<=4; ring++) {
+    ctx.beginPath();
+    for (let i=0;i<=n;i++){ const a=-Math.PI/2+i*2*Math.PI/n, r=R*ring/4; const x=cx+r*Math.cos(a), y=cy+r*Math.sin(a); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.stroke();
+  }
+  for (let i=0;i<n;i++){ const a=-Math.PI/2+i*2*Math.PI/n; const x=cx+R*Math.cos(a), y=cy+R*Math.sin(a);
+    ctx.strokeStyle='#334155'; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
+    ctx.fillStyle='#94a3b8'; ctx.textAlign = Math.abs(Math.cos(a))<0.3?'center':(Math.cos(a)>0?'left':'right');
+    ctx.fillText(DIMS[i].slice(0,5), x+8*Math.cos(a), y+8*Math.sin(a)+3);
+  }
+  ctx.beginPath();
+  for (let i=0;i<=n;i++){ const d=DIMS[i%n]; const v=(scores[d]??0)/100; const a=-Math.PI/2+i*2*Math.PI/n, r=R*v; const x=cx+r*Math.cos(a), y=cy+r*Math.sin(a); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+  ctx.closePath(); ctx.fillStyle='rgba(45,212,191,.25)'; ctx.strokeStyle='#2dd4bf'; ctx.lineWidth=2; ctx.fill(); ctx.stroke(); ctx.lineWidth=1;
+}
+
+function drawTrend(id, pts) {
+  const c=$('#'+id), ctx=c.getContext('2d'); const W=c.width,H=c.height; ctx.clearRect(0,0,W,H);
+  const P={l:38,r:14,t:14,b:26}, w=W-P.l-P.r, h=H-P.t-P.b;
+  ctx.strokeStyle='#334155'; ctx.fillStyle='#94a3b8'; ctx.font='11px system-ui'; ctx.textAlign='right';
+  for (let g=0; g<=4; g++){ const y=P.t+h*g/4, val=100-g*25; ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+w,y); ctx.stroke(); ctx.fillText(val, P.l-6, y+3); }
+  if (!pts || pts.length===0){ ctx.textAlign='center'; ctx.fillText('no data', W/2, H/2); return; }
+  const xs=(i)=> P.l + (pts.length===1? w/2 : w*i/(pts.length-1));
+  const ys=(v)=> P.t + h*(1 - v/100);
+  ctx.strokeStyle='#818cf8'; ctx.lineWidth=2; ctx.beginPath();
+  pts.forEach((p,i)=>{ const x=xs(i),y=ys(p.value); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); ctx.lineWidth=1;
+  ctx.fillStyle='#2dd4bf'; pts.forEach((p,i)=>{ ctx.beginPath(); ctx.arc(xs(i),ys(p.value),3,0,7); ctx.fill(); });
+}
+
+// ---------- practice (live WebSocket) ----------
+let ws=null, audioCtx=null, micStream=null, procNode=null, recording=false, playHead=0;
+const TTS_RATE = 24000; // Kokoro output rate (used only when models are on)
+
+function addMsg(who, text) {
+  const d=document.createElement('div'); d.className='msg '+(who==='user'?'user':'coach');
+  d.innerHTML=`<div class="who">${who==='user'?'You':'Coach'}</div>`+escapeHtml(text);
+  $('#conv').appendChild(d); $('#conv').scrollTop=$('#conv').scrollHeight; return d;
+}
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+$('#micBtn').addEventListener('click', () => recording ? stopMic() : startMic());
+
+async function startMic() {
+  if (!currentUser) { alert('Select a learner first.'); return; }
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount:1, echoCancellation:true, noiseSuppression:true } });
+  } catch (e) { alert('Microphone access denied.'); return; }
+
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  playHead = audioCtx.currentTime;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/session?user_id=${encodeURIComponent(currentUser)}&mode=free`);
+  ws.binaryType = 'arraybuffer';
+  $('#wsStatus').textContent = 'connecting…';
+
+  ws.onopen = () => { $('#wsStatus').textContent = 'connected — speak, then pause'; $('#recDot').className='dot rec'; };
+  ws.onclose = () => { $('#wsStatus').textContent = 'disconnected'; $('#recDot').className='dot'; };
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === 'string') { handleControl(JSON.parse(ev.data)); }
+    else { playPCM(new Int16Array(ev.data)); }
+  };
+
+  const src = audioCtx.createMediaStreamSource(micStream);
+  procNode = audioCtx.createScriptProcessor(4096, 1, 1);
+  procNode.onaudioprocess = (e) => {
+    if (!ws || ws.readyState !== 1) return;
+    const input = e.inputBuffer.getChannelData(0);
+    const pcm = floatTo16kPCM(input, audioCtx.sampleRate);
+    if (pcm.byteLength) ws.send(pcm);
+  };
+  src.connect(procNode); procNode.connect(audioCtx.destination);
+  recording = true; $('#micBtn').textContent='⏹ Stop'; $('#micBtn').classList.remove('primary'); $('#micBtn').classList.add('danger');
+}
+
+function stopMic() {
+  recording=false; $('#micBtn').textContent='🎙 Start speaking'; $('#micBtn').classList.add('primary'); $('#micBtn').classList.remove('danger');
+  try { if (ws && ws.readyState===1){ ws.send(JSON.stringify({type:'end'})); ws.send(JSON.stringify({type:'bye'})); } } catch {}
+  if (procNode){ procNode.disconnect(); procNode=null; }
+  if (micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+  setTimeout(()=>{ if (ws) ws.close(); renderDashboard(); }, 400);
+}
+
+function handleControl(m) {
+  if (m.type==='final') addMsg('user', m.text || '(…)');
+  else if (m.type==='reply') addMsg('coach', m.text || '');
+  else if (m.type==='turn_end') { const t=m.timings; $('#turnTimings').textContent = `first audio ${t.first_audio_ms}ms · stt ${t.stt_ms} · llm ${t.llm_ms}`; }
+  else if (m.type==='error') addMsg('coach', '⚠ ' + (m.detail||'error'));
+  else if (m.type==='session') { /* ready */ }
+}
+
+// Float32 @ inRate -> Int16 PCM @ 16k (linear decimation), returned as ArrayBuffer
+function floatTo16kPCM(input, inRate) {
+  const ratio = inRate / 16000;
+  const outLen = Math.floor(input.length / ratio);
+  const out = new Int16Array(outLen);
+  for (let i=0;i<outLen;i++){ const s = Math.max(-1, Math.min(1, input[Math.floor(i*ratio)])); out[i] = s<0 ? s*0x8000 : s*0x7fff; }
+  return out.buffer;
+}
+
+// Play an Int16 chunk (assumed TTS_RATE) by scheduling it after the last one.
+function playPCM(int16) {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, int16.length, TTS_RATE);
+  const ch = buf.getChannelData(0);
+  for (let i=0;i<int16.length;i++) ch[i] = int16[i] / 32768;
+  const src = audioCtx.createBufferSource(); src.buffer = buf; src.connect(audioCtx.destination);
+  const now = audioCtx.currentTime; if (playHead < now) playHead = now;
+  src.start(playHead); playHead += buf.duration;
+}
+
+boot();
+</script>
+</body>
+</html>
