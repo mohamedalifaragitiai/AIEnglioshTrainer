@@ -67,16 +67,20 @@ class WhisperSTTModel(ManagedModel):
 
     async def _load(self) -> None:
         from faster_whisper import WhisperModel
+        from huggingface_hub import snapshot_download
 
         s = self._settings
-        # int8 on CPU fallback; float16 on GPU. Offline: never fetch at runtime.
+        # Load from the exact repo setup_models.py fetched (a CTranslate2 build),
+        # resolved to its local snapshot path — faster-whisper's size-name aliases
+        # map to a different repo, so we bypass them. Offline: never fetch at runtime.
+        local_path = snapshot_download(
+            s.stt_repo, cache_dir=str(s.models_dir), local_files_only=True
+        )
         compute_type = s.stt_compute_type if s.stt_device.startswith("cuda") else "int8"
         self.model = WhisperModel(
-            s.stt_model,
+            local_path,
             device="cuda" if s.stt_device.startswith("cuda") else "cpu",
             compute_type=compute_type,
-            download_root=str(s.models_dir),
-            local_files_only=True,
         )
 
 

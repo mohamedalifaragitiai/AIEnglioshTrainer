@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     # Faster-Whisper STT (hot path). float16 on GPU, int8 on CPU fallback.
     enable_stt: bool = True
     stt_model: str = "large-v3-turbo"
+    # HF repo actually downloaded + loaded (a CTranslate2 build of turbo).
+    stt_repo: str = "deepdml/faster-whisper-large-v3-turbo-ct2"
     stt_device: str = "cuda"
     stt_compute_type: str = "float16"
     stt_vram_gb: float = 1.8  # estimate; benchmark_models.py refines with measured VRAM
