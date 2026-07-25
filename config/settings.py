@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     # --- Paths -------------------------------------------------------------
     data_dir: Path = _REPO_ROOT / "data"
     models_dir: Path = _REPO_ROOT / "models"
+    # SQLite file (WAL mode). Override with COACH_DB_PATH for tests/alt hosts.
+    db_path: Path | None = None
 
     @field_validator("log_level")
     @classmethod
@@ -75,6 +77,11 @@ class Settings(BaseSettings):
     def ladder_thresholds(self) -> tuple[float, float, float, float]:
         """Entry thresholds for degradation levels 1..4, ascending."""
         return (self.ladder_l1, self.ladder_l2, self.ladder_l3, self.ladder_l4)
+
+    @property
+    def resolved_db_path(self) -> Path:
+        """SQLite file path, defaulting to ``<data_dir>/coach.db``."""
+        return self.db_path or (self.data_dir / "coach.db")
 
 
 @lru_cache
