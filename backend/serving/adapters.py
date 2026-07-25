@@ -143,6 +143,14 @@ class KokoroTTSModel(ManagedModel):
         device = "cuda" if self._settings.tts_device.startswith("cuda") else "cpu"
         # American English by default; voice packs selected per-utterance later.
         self.pipeline = KPipeline(lang_code="a", device=device)
+        # Warm up: the first synth compiles CUDA kernels + loads the voice pack, which
+        # otherwise lands on the first live turn as a big first-audio spike. Run one
+        # throwaway phrase now so the live path is hot.
+        try:
+            for _ in self.pipeline("Ready to help you practice.", voice="af_heart"):
+                break
+        except Exception as exc:  # noqa: BLE001 — warmup is best-effort
+            log.warning("tts_warmup_failed", error=str(exc))
 
 
 def build_default_registry(
