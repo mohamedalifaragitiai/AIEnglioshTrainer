@@ -96,11 +96,14 @@ uv sync --group models
 # 3. Fetch the resident GPU weights (STT + GOP + TTS) into ./models:
 uv run python scripts/setup_models.py --download
 
-# 4. Start the LLM server as a SEPARATE process (native Linux/WSL2), OpenAI-API:
-#    uv run vllm serve Qwen/Qwen3-8B --gpu-memory-utilization 0.68 --port 8001
+# 4. Start the LLM server as a SEPARATE process (WSL2 on Windows), OpenAI-API.
+#    Helper (installs uv + vLLM in WSL, downloads weights first run):
+wsl bash scripts/run_vllm.sh Qwen/Qwen3-8B 8001 0.68
 
-# 5. Measure real latency/VRAM, then enable loading (guard verifies the budget):
-uv run python scripts/benchmark_models.py
+# 5. Measure real latency/VRAM (resident models + the LLM), then enable loading:
+uv run python scripts/benchmark_models.py         # STT/GOP/TTS load + VRAM
+uv run python scripts/benchmark_gop_kokoro.py     # GOP + Kokoro inference latency
+uv run python scripts/benchmark_llm.py            # vLLM TTFT + tokens/sec (needs step 4)
 COACH_LOAD_MODELS=true uv run uvicorn backend.main:app --port 8000
 ```
 

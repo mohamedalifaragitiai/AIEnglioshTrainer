@@ -13,6 +13,8 @@ governs request shape, not admission of the reservation itself.
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from time import perf_counter
 from typing import Any, Literal
 
@@ -74,17 +76,7 @@ class VLLMClient:
         extra: dict[str, Any] | None = None,
     ) -> str:
         """One chat completion. Honors guard degradation on the hot path."""
-        effective_max = max_tokens
-        if self.guard is not None:
-            adm = await self.guard.acquire(
-                ResourceEstimate(llm_max_tokens=max_tokens, llm_context=4096), path
-            )
-            if adm.kind == "reject":
-                raise LLMError(f"guard rejected LLM call: {adm.reason}")
-            if adm.kind == "degraded" and "max_tokens" in adm.params:
-                effective_max = adm.params["max_tokens"]
-                log.info("llm_degraded", path=path, max_tokens=effective_max, reason=adm.reason)
-
+        effective_max = await self._admit(path, max_tokens)
         model = self.model_for(path)
         payload: dict[str, Any] = {
             "model": model,
@@ -109,6 +101,61 @@ class VLLMClient:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMError(f"unexpected vLLM response shape: {data!r}") from exc
+
+    async def chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        path: Path = "hot",
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+    ) -> AsyncIterator[str]:
+        """Stream content deltas as they arrive (OpenAI SSE). Lets callers measure
+        time-to-first-token and pipe tokens into TTS. Honors guard degradation."""
+        effective_max = await self._admit(path, max_tokens)
+        model = self.model_for(path)
+        payload = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": effective_max,
+            "temperature": temperature,
+            "stream": True,
+        }
+        try:
+            async with self._client.stream(
+                "POST", "/v1/chat/completions", json=payload
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[len("data:") :].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        delta = json.loads(data)["choices"][0]["delta"].get("content")
+                    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+                        continue
+                    if delta:
+                        yield delta
+        except httpx.HTTPError as exc:
+            raise LLMError(f"vLLM stream failed: {exc}") from exc
+
+    async def _admit(self, path: Path, max_tokens: int) -> int:
+        """Ask the guard for admission; return the effective max_tokens (possibly
+        degraded). Raises LLMError if the guard rejects."""
+        if self.guard is None:
+            return max_tokens
+        adm = await self.guard.acquire(
+            ResourceEstimate(llm_max_tokens=max_tokens, llm_context=4096), path
+        )
+        if adm.kind == "reject":
+            raise LLMError(f"guard rejected LLM call: {adm.reason}")
+        if adm.kind == "degraded" and "max_tokens" in adm.params:
+            log.info("llm_degraded", path=path, max_tokens=adm.params["max_tokens"],
+                     reason=adm.reason)
+            return adm.params["max_tokens"]
+        return max_tokens
 
     async def aclose(self) -> None:
         await self._client.aclose()

@@ -83,3 +83,61 @@ async def test_chat_raises_on_bad_shape():
 
     with pytest.raises(LLMError):
         await _client(handler).chat([{"role": "user", "content": "hi"}])
+
+
+# --- streaming -------------------------------------------------------------
+
+_SSE = (
+    'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
+    'data: {"choices":[{"delta":{"content":" there"}}]}\n\n'
+    'data: {"choices":[{"delta":{}}]}\n\n'
+    "data: [DONE]\n\n"
+)
+
+
+def _stream_client(sse: str, guard=None, captured: dict | None = None) -> VLLMClient:
+    def handler(request):
+        if captured is not None:
+            captured["json"] = json.loads(request.content)
+        return httpx.Response(
+            200, content=sse.encode(), headers={"content-type": "text/event-stream"}
+        )
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://vllm.test")
+    return VLLMClient("http://vllm.test", hot_model="hot-8b", cold_model="cold-14b",
+                      guard=guard, client=http)
+
+
+async def test_chat_stream_yields_deltas():
+    client = _stream_client(_SSE)
+    out = "".join([d async for d in client.chat_stream([{"role": "user", "content": "hi"}])])
+    assert out == "Hello there"
+
+
+async def test_chat_stream_sets_stream_flag_and_model():
+    cap: dict = {}
+    client = _stream_client(_SSE, captured=cap)
+    async for _ in client.chat_stream([{"role": "user", "content": "hi"}], path="cold"):
+        pass
+    assert cap["json"]["stream"] is True
+    assert cap["json"]["model"] == "cold-14b"
+
+
+async def test_chat_stream_honors_degradation(guard, sampler):
+    feed_steady(guard, sampler, 0.92)  # level 2 → trim max_tokens
+    cap: dict = {}
+    client = _stream_client(_SSE, guard=guard, captured=cap)
+    async for _ in client.chat_stream([{"role": "user", "content": "hi"}], max_tokens=512):
+        pass
+    assert cap["json"]["max_tokens"] < 512
+
+
+async def test_chat_stream_raises_on_http_error():
+    def handler(request):
+        return httpx.Response(500, json={"error": "boom"})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://vllm.test")
+    client = VLLMClient("http://vllm.test", hot_model="h", cold_model="c", client=http)
+    with pytest.raises(LLMError):
+        async for _ in client.chat_stream([{"role": "user", "content": "hi"}]):
+            pass
