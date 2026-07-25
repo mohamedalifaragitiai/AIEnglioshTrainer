@@ -26,7 +26,7 @@ except (AttributeError, ValueError):
     pass
 
 USER = "abu_ali"
-WS = f"ws://127.0.0.1:8000/ws/session?user_id={USER}&mode=free"
+WS = f"ws://127.0.0.1:8000/ws/session?user_id={USER}&mode=free&ptt=1"
 SAY = "Hello coach. I want to practice my English speaking today. Can you ask me a question?"
 
 

@@ -24,6 +24,7 @@ from backend.api import assessments as assessments_router
 from backend.api import dev as dev_router
 from backend.api import insights as insights_router
 from backend.api import models as models_router
+from backend.api import ops as ops_router
 from backend.api import progress as progress_router
 from backend.api import sessions as sessions_router
 from backend.api import users as users_router
@@ -194,6 +195,7 @@ app.include_router(progress_router.router)
 app.include_router(models_router.router)
 app.include_router(assessments_router.router)
 app.include_router(insights_router.router)
+app.include_router(ops_router.router)
 app.include_router(dev_router.router)
 
 

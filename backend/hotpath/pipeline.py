@@ -33,6 +33,7 @@ from backend.hotpath.base import (
     TTSStage,
     TurnTimings,
 )
+from backend.hotpath.dialogue import speakable_text
 from backend.persistence.repositories import UtteranceRepository
 from config.settings import Settings
 
@@ -44,6 +45,7 @@ class TurnContext:
     session_id: str
     user_id: str
     history: list[dict[str, str]] = field(default_factory=list)
+    system_prompt: str | None = None  # level/topic-aware coach persona
 
 
 class HotPathPipeline:
@@ -96,14 +98,20 @@ class HotPathPipeline:
         first_chunk_at: float | None = None
         reply_parts: list[str] = []
         try:
-            async for phrase in self.dialogue.reply_stream(transcript, ctx.history):
+            async for phrase in self.dialogue.reply_stream(
+                transcript, ctx.history, system_prompt=ctx.system_prompt
+            ):
                 if first_token_at is None:
                     first_token_at = perf_counter()
                     timings.llm_ms = (first_token_at - llm_start) * 1000  # time-to-first-sentence
                     metrics.hotpath_stage_seconds.labels("llm").observe(timings.llm_ms / 1000)
                 reply_parts.append(phrase)
                 yield HotEvent(HotEventKind.REPLY, text=phrase, meta={"partial": True})
-                async for chunk in self.tts.synthesize_stream(phrase):
+                # Speak the phrase, but never read emojis/symbols aloud.
+                speech = speakable_text(phrase)
+                if not speech:
+                    continue
+                async for chunk in self.tts.synthesize_stream(speech):
                     if first_chunk_at is None:
                         first_chunk_at = perf_counter()
                         timings.tts_first_ms = (first_chunk_at - first_token_at) * 1000

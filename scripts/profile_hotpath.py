@@ -42,7 +42,7 @@ class FakeDialogue:
         await asyncio.sleep(self.ms / 1000)
         return "That's a great point. Tell me more about it."
 
-    async def reply_stream(self, transcript: str, history: list[dict[str, str]]):
+    async def reply_stream(self, transcript: str, history: list[dict[str, str]], **_):
         await asyncio.sleep(self.ms / 1000)
         yield "That's a great point. Tell me more about it."
 

@@ -32,7 +32,7 @@ class FakeDialogue:
     async def reply(self, transcript, history):
         return "Hello! How can I help you practice today?"
 
-    async def reply_stream(self, transcript, history):
+    async def reply_stream(self, transcript, history, **_):
         yield "Hello! How can I help you practice today?"
 
 
