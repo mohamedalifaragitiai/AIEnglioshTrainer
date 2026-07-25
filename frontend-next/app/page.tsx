@@ -2,10 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Assessment, GapItem, Plan, ProgressOverview, SkillPoint } from "@/lib/types";
+import {
+  LEVEL_NAMES,
+  type Assessment,
+  type GapItem,
+  type Plan,
+  type ProgressOverview,
+  type SkillPoint,
+} from "@/lib/types";
 import { useUser } from "./user-context";
 import { SkillRadar } from "@/components/SkillRadar";
 import { OverallTrend } from "@/components/OverallTrend";
+import { LevelPicker, SkillBars } from "@/components/widgets";
 import {
   AssessmentsTable,
   GapsPanel,
@@ -15,7 +23,7 @@ import {
 } from "@/components/panels";
 
 export default function Dashboard() {
-  const { currentUser } = useUser();
+  const { currentUser, currentLevel, refresh } = useUser();
   const [ov, setOv] = useState<ProgressOverview | null>(null);
   const [assess, setAssess] = useState<Assessment[]>([]);
   const [trend, setTrend] = useState<SkillPoint[]>([]);
@@ -52,6 +60,10 @@ export default function Dashboard() {
   if (!ov) return <p className="text-muted">Loading…</p>;
 
   const eta = ov.estimated_days_to_next_level;
+  const setLevel = async (l: number) => {
+    await api.setLevel(currentUser, l);
+    await refresh();
+  };
   return (
     <div className="space-y-4">
       {ov.assessments_count === 0 && (
@@ -61,44 +73,50 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatTile label="Level" value={String(ov.current_level)} sub={LEVEL_NAMES[ov.current_level]} />
+        <StatTile label="Streak" value={`${ov.streak_days}d`} sub="keep it up" />
         <StatTile
-          label="Level (0–5)"
-          value={String(ov.current_level)}
-          sub={ov.next_level != null ? `next: ${ov.next_level}` : "top level"}
-        />
-        <StatTile label="Streak" value={`${ov.streak_days}d`} />
-        <StatTile
-          label="Latest overall"
-          value={ov.latest_overall != null ? String(Math.round(ov.latest_overall)) : "—"}
+          label="Overall"
+          value={ov.latest_overall != null ? Math.round(ov.latest_overall) + "%" : "—"}
           sub={`${ov.assessments_count} assessments`}
         />
         <StatTile
-          label="Days to next level"
-          value={eta != null ? String(eta) : "—"}
-          sub={eta != null ? "at current pace" : "flat / need data"}
+          label="To next level"
+          value={eta != null ? `${eta}d` : "—"}
+          sub={ov.next_level != null ? `reach level ${ov.next_level}` : "top level"}
         />
       </div>
 
+      <div className="card">
+        <div className="card-title">Your level — pick where you want to practice</div>
+        <LevelPicker current={currentLevel} onSet={setLevel} />
+      </div>
+
       <div className="grid md:grid-cols-2 gap-4">
         <div className="card">
-          <div className="card-title">Skill radar (latest)</div>
+          <div className="card-title">Skill radar</div>
           <SkillRadar scores={ov.latest_scores} />
         </div>
         <div className="card">
-          <div className="card-title">Overall trend</div>
-          <OverallTrend points={trend} />
+          <div className="card-title">Per-skill mastery</div>
+          <SkillBars scores={ov.latest_scores} />
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="card">
-          <div className="card-title">Top gaps</div>
-          <GapsPanel gaps={gaps} />
+          <div className="card-title">Overall trend</div>
+          <OverallTrend points={trend} />
         </div>
         <div className="card">
           <div className="card-title">Study plan</div>
           <PlanPanel plan={plan} />
         </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Top gaps</div>
+        <GapsPanel gaps={gaps} />
       </div>
 
       <div className="card">

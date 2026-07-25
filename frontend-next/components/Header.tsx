@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { useUser } from "@/app/user-context";
 
+import { LEVEL_NAMES } from "@/lib/types";
+
 export function Header() {
-  const { users, currentUser, setCurrentUser, refresh, modelsLoaded } = useUser();
+  const { users, currentUser, currentLevel, setCurrentUser, refresh, modelsLoaded } = useUser();
   const pathname = usePathname();
 
   const newUser = async () => {
@@ -50,6 +52,9 @@ export function Header() {
         <h1 className="text-lg font-semibold">
           AI English <span className="text-accent">Coach</span>
         </h1>
+        <span className="pill bg-panel2 text-accent2">
+          Level {currentLevel} · {LEVEL_NAMES[currentLevel]}
+        </span>
         <span
           className={`pill ${
             modelsLoaded === null
@@ -84,7 +89,9 @@ export function Header() {
       </div>
       <nav className="flex gap-1 px-6">
         {tab("/", "Dashboard")}
-        {tab("/practice", "Practice (live)")}
+        {tab("/practice", "Practice")}
+        {tab("/report", "Report")}
+        {tab("/monitor", "Monitor")}
       </nav>
     </header>
   );

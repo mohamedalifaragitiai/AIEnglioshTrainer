@@ -96,3 +96,23 @@ export interface ModelInfo {
   status: string;
   vram_gb: number;
 }
+
+export interface Stats {
+  degradation_level: number;
+  ceiling: number;
+  soft: number;
+  resources: Partial<Record<"vram" | "gpu_util" | "ram" | "cpu" | "disk", number | null>>;
+  vram_total_gb: number | null;
+  vram_used_gb: number | null;
+  models: ModelInfo[];
+  models_loaded: number;
+}
+
+export const LEVEL_NAMES = [
+  "Beginner",
+  "Intermediate",
+  "Advanced",
+  "Professional",
+  "Fluent",
+  "Native-like",
+] as const;

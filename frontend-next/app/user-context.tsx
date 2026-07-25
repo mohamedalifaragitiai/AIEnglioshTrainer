@@ -7,6 +7,7 @@ import type { User } from "@/lib/types";
 interface UserCtx {
   users: User[];
   currentUser: string | null;
+  currentLevel: number;
   setCurrentUser: (id: string) => void;
   refresh: () => Promise<void>;
   modelsLoaded: boolean | null;
@@ -49,8 +50,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
       .catch(() => setModelsLoaded(null));
   }, []);
 
+  const currentLevel = users.find((u) => u.user_id === currentUser)?.current_level ?? 0;
+
   return (
-    <Ctx.Provider value={{ users, currentUser, setCurrentUser, refresh, modelsLoaded }}>
+    <Ctx.Provider
+      value={{ users, currentUser, currentLevel, setCurrentUser, refresh, modelsLoaded }}
+    >
       {children}
     </Ctx.Provider>
   );
