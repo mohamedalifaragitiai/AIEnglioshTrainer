@@ -96,11 +96,31 @@ class Settings(BaseSettings):
     tts_device: str = "cuda"
     tts_vram_gb: float = 0.6  # estimate; refined by benchmark_models.py
 
+    # --- Hot path (Phase 3) ------------------------------------------------
+    hotpath_sample_rate: int = 16000
+    hotpath_system_prompt: str = (
+        "You are a friendly, concise English speaking coach. Reply in one or two "
+        "short, natural sentences to keep the conversation flowing, and gently model "
+        "correct usage. Do not lecture."
+    )
+    hotpath_reply_max_tokens: int = 200
+    first_audio_budget_ms: float = 300.0  # target time-to-first-audio
+
+    # VAD: 'energy' is a dependency-free offline default so the hot path runs
+    # without any model download; 'silero' is a higher-quality optional upgrade.
+    vad_backend: str = "energy"
+    vad_frame_ms: int = 20
+    vad_energy_threshold: float = 0.02       # normalized RMS (int16 / 32768)
+    vad_silence_hangover_ms: int = 500       # trailing silence that ends a turn
+    vad_min_speech_ms: int = 200             # ignore blips shorter than this
+
     # --- Paths -------------------------------------------------------------
     data_dir: Path = _REPO_ROOT / "data"
     models_dir: Path = _REPO_ROOT / "models"
     # SQLite file (WAL mode). Override with COACH_DB_PATH for tests/alt hosts.
     db_path: Path | None = None
+    # Where learner-turn audio is written (for cold-path re-analysis). None = off.
+    audio_dir: Path | None = None
 
     @field_validator("log_level")
     @classmethod

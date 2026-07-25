@@ -101,6 +101,31 @@ llm_request_duration_seconds = Histogram(
 )
 
 
+# --- Hot-path metrics (Phase 3) ---------------------------------------------
+
+hotpath_stage_seconds = Histogram(
+    "hotpath_stage_seconds",
+    "Per-stage latency of a hot-path turn.",
+    ["stage"],  # stt | llm | tts_first | tts_total
+    registry=REGISTRY,
+    buckets=(0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0),
+)
+
+hotpath_first_audio_seconds = Histogram(
+    "hotpath_first_audio_seconds",
+    "Time from finalized user speech to first TTS audio chunk (the <300ms budget).",
+    registry=REGISTRY,
+    buckets=(0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.6, 1.0, 2.0),
+)
+
+hotpath_turns_total = Counter(
+    "hotpath_turns_total",
+    "Completed hot-path turns by outcome.",
+    ["outcome"],  # ok | degraded | error
+    registry=REGISTRY,
+)
+
+
 def render_metrics() -> bytes:
     """Serialize the registry in Prometheus text exposition format."""
     return generate_latest(REGISTRY)
