@@ -86,20 +86,20 @@ class Settings(BaseSettings):
     stt_repo: str = "deepdml/faster-whisper-large-v3-turbo-ct2"
     stt_device: str = "cuda"
     stt_compute_type: str = "float16"
-    stt_vram_gb: float = 1.8  # estimate; benchmark_models.py refines with measured VRAM
+    stt_vram_gb: float = 1.9  # measured 1.84GB on RTX 5080 (float16)
 
     # wav2vec2 GOP pronunciation (cold path). Real GOP algorithm lands in Phase 4;
     # Phase 2 loads/health-checks the model through the guard.
     enable_gop: bool = True
     gop_model: str = "facebook/wav2vec2-lv-60-espeak-cv-ft"  # phoneme CTC
     gop_device: str = "cuda"
-    gop_vram_gb: float = 1.6  # estimate; refined by benchmark_models.py
+    gop_vram_gb: float = 1.5  # measured 1.46GB on RTX 5080
 
     # Kokoro-82M TTS (hot path, own process/GPU).
     enable_tts: bool = True
     tts_model: str = "hexgrad/Kokoro-82M"
     tts_device: str = "cuda"
-    tts_vram_gb: float = 0.6  # estimate; refined by benchmark_models.py
+    tts_vram_gb: float = 0.3  # measured 0.23GB on RTX 5080
 
     # --- Hot path (Phase 3) ------------------------------------------------
     hotpath_sample_rate: int = 16000

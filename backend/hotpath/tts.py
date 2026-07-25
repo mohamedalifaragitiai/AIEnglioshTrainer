@@ -28,5 +28,9 @@ class KokoroTTSStage:
 
         # Kokoro yields (graphemes, phonemes, audio_float32) per segment.
         for _gs, _ps, audio in self._model.pipeline(text, voice=self._voice):
+            # Kokoro yields a torch Tensor; bring it to CPU numpy before packing.
+            if hasattr(audio, "detach"):
+                audio = audio.detach().cpu().numpy()
+            audio = np.asarray(audio, dtype=np.float32)
             pcm16 = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16)
             yield pcm16.tobytes()
