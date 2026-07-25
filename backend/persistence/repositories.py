@@ -306,6 +306,17 @@ class AssessmentRepository:
                 "SELECT COUNT(*) FROM assessments WHERE user_id=?", (user_id,)
             ).fetchone()[0]
 
+    def exists_for_utterance(self, utterance_id: str) -> bool:
+        """Cold-path idempotency: has this utterance already been scored?"""
+        with self.db.connection() as con:
+            return (
+                con.execute(
+                    "SELECT 1 FROM assessments WHERE utterance_id=? LIMIT 1",
+                    (utterance_id,),
+                ).fetchone()
+                is not None
+            )
+
 
 class EvaluatorOutputRepository:
     """Raw evaluator payloads, stored separately for retroactive recompute/audit."""

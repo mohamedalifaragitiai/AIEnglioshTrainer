@@ -126,6 +126,36 @@ hotpath_turns_total = Counter(
 )
 
 
+# --- Cold-path metrics (Phase 4) --------------------------------------------
+
+coldpath_jobs_total = Counter(
+    "coldpath_jobs_total",
+    "Cold-path evaluation jobs by outcome.",
+    ["outcome"],  # processed | deferred | skipped | error
+    registry=REGISTRY,
+)
+
+coldpath_queue_depth = Gauge(
+    "coldpath_queue_depth",
+    "Pending cold-path evaluation jobs.",
+    registry=REGISTRY,
+)
+
+evaluator_duration_seconds = Histogram(
+    "evaluator_duration_seconds",
+    "Duration of a single evaluator run.",
+    ["evaluator"],
+    registry=REGISTRY,
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
+
+assessments_produced_total = Counter(
+    "assessments_produced_total",
+    "Assessments produced by the cold path.",
+    registry=REGISTRY,
+)
+
+
 def render_metrics() -> bytes:
     """Serialize the registry in Prometheus text exposition format."""
     return generate_latest(REGISTRY)

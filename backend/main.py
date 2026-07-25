@@ -17,15 +17,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from starlette.websockets import WebSocket
 
+from backend.api import assessments as assessments_router
 from backend.api import models as models_router
 from backend.api import progress as progress_router
 from backend.api import sessions as sessions_router
 from backend.api import users as users_router
+from backend.coldpath.factory import build_worker
 from backend.core.event_bus import EventBus
 from backend.core.logging import configure_logging, get_logger
 from backend.core.metrics import CONTENT_TYPE, render_metrics
 from backend.core.resource_guard import PsutilNvmlSampler, ResourceGuard
-from backend.domain.events import UtteranceFinalized
+from backend.domain.events import AssessmentReady
 from backend.hotpath.dialogue import DialogueStage
 from backend.hotpath.stt import WhisperSTTStage
 from backend.hotpath.tts import KokoroTTSStage
@@ -74,9 +76,10 @@ async def lifespan(app: FastAPI):
     # Hot path: event bus + stages (backed by the registry's models). Stages work
     # even when models are disabled — a turn then reports an actionable error.
     bus = EventBus()
-    bus.subscribe(UtteranceFinalized, _on_utterance_finalized)
+    bus.subscribe(AssessmentReady, _on_assessment_ready)
     stt_model = next(m for m in registry.models if m.kind == ModelKind.STT)
     tts_model = next(m for m in registry.models if m.kind == ModelKind.TTS)
+    gop_model = next((m for m in registry.models if m.kind == ModelKind.GOP), None)
     stages = HotPathStages(
         stt=WhisperSTTStage(stt_model),  # type: ignore[arg-type]
         dialogue=DialogueStage(
@@ -87,6 +90,14 @@ async def lifespan(app: FastAPI):
         tts=KokoroTTSStage(tts_model),  # type: ignore[arg-type]
     )
 
+    # Cold path: worker consumes UtteranceFinalized -> evaluators -> scoring ->
+    # profile update -> AssessmentReady. Deferrable under guard pressure.
+    worker = build_worker(
+        guard=guard, llm_client=llm_client, gop_model=gop_model, db=db, event_bus=bus
+    )
+    worker.attach(bus)
+    await worker.start()
+
     app.state.guard = guard
     app.state.sampler = sampler
     app.state.db = db
@@ -94,6 +105,7 @@ async def lifespan(app: FastAPI):
     app.state.llm_client = llm_client
     app.state.event_bus = bus
     app.state.hotpath_stages = stages
+    app.state.coldpath_worker = worker
     log.info(
         "app_started",
         host=settings.app_host,
@@ -104,6 +116,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await worker.stop()
         await bus.drain()
         await registry.unload_all()
         await llm_client.aclose()
@@ -113,14 +126,12 @@ async def lifespan(app: FastAPI):
         log.info("app_stopped")
 
 
-async def _on_utterance_finalized(ev: UtteranceFinalized) -> None:
-    """Cold-path placeholder until Phase 4 wires real evaluation/scoring."""
+async def _on_assessment_ready(ev: AssessmentReady) -> None:
     log.info(
-        "utterance_finalized",
-        utterance_id=ev.utterance_id,
-        session_id=ev.session_id,
+        "assessment_ready_event",
         user_id=ev.user_id,
-        transcript_len=len(ev.transcript),
+        session_id=ev.session_id,
+        assessment_id=ev.assessment_id,
     )
 
 
@@ -168,3 +179,4 @@ app.include_router(users_router.router)
 app.include_router(sessions_router.router)
 app.include_router(progress_router.router)
 app.include_router(models_router.router)
+app.include_router(assessments_router.router)
