@@ -125,6 +125,7 @@
 <nav>
   <button data-tab="dash" class="active">Dashboard</button>
   <button data-tab="practice">Practice</button>
+  <button data-tab="report">Report</button>
   <button data-tab="monitor">Monitor</button>
 </nav>
 
@@ -172,13 +173,38 @@
     <div class="card chat-card">
       <div class="conv" id="conv"><div class="conv-empty" id="convEmpty">Tap the microphone below and start the conversation 🎙</div></div>
       <div class="composer">
-        <button id="micBtn" class="mic" title="Tap to speak">🎙</button>
         <div class="composer-status">
           <div id="wsStatus" style="font-weight:600">Tap the mic to speak</div>
           <div class="muted" id="turnTimings" style="font-size:11.5px"></div>
         </div>
         <button id="endBtn" class="btn-danger" style="display:none">End</button>
+        <button id="micBtn" class="mic" title="Tap to speak">🎙</button>
       </div>
+    </div>
+  </section>
+
+  <!-- REPORT (detailed coach's report) -->
+  <section id="report" class="hidden">
+    <div class="card" style="margin-bottom:16px">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <h3 style="margin:0 0 6px">Coach's report</h3>
+          <div id="repHead" class="muted"></div>
+        </div>
+        <div class="row">
+          <button class="btn-primary" data-fmt="pdf">⬇ Download PDF</button>
+          <button data-fmt="xlsx">Excel</button><button data-fmt="csv">CSV</button><button data-fmt="json">JSON</button>
+        </div>
+      </div>
+    </div>
+    <div class="grid c2">
+      <div class="card"><h3>Per-skill mastery</h3><div id="repSkills"></div></div>
+      <div class="card"><h3>Strengths &amp; focus</h3><div id="repSW"></div></div>
+    </div>
+    <div style="height:16px"></div>
+    <div class="grid c2">
+      <div class="card"><h3>Corrections &amp; suggestions</h3><div id="repCorr"></div></div>
+      <div class="card"><h3>Your plan</h3><div id="repPlan"></div></div>
     </div>
   </section>
 
@@ -235,8 +261,9 @@ $('#seedBtn').addEventListener('click',async()=>{if(!currentUser)return alert('S
 // tabs
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-  ['dash','practice','monitor'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  ['dash','practice','report','monitor'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
   if(b.dataset.tab==='dash')renderDashboard();
+  if(b.dataset.tab==='report')renderReport();
   if(b.dataset.tab==='monitor')startMonitor();else stopMonitor();
 }));
 
@@ -278,11 +305,28 @@ function renderSkills(scores){
     return `<div class="skill"><div class="top"><b>${d}</b><span class="pct">${v}%</span></div>
       <div class="bar"><i style="width:${v}%;background:linear-gradient(90deg,${c}88,${c})"></i></div></div>`;}).join('');
 }
-function renderPlan(plan){
-  if(!plan){$('#plan').innerHTML='<span class="muted">No plan yet.</span>';return;}
-  $('#plan').innerHTML=`<p style="margin:0 0 10px">${esc(plan.summary)}</p>
+function renderPlan(plan,sel='#plan'){
+  if(!plan){$(sel).innerHTML='<span class="muted">No plan yet.</span>';return;}
+  $(sel).innerHTML=`<p style="margin:0 0 10px">${esc(plan.summary)}</p>
     <div class="muted" style="font-size:12px;margin-bottom:10px">difficulty ${plan.difficulty} · ${plan.horizon.replace('_',' ')}${plan.estimated_days_to_next_level!=null?` · ~${plan.estimated_days_to_next_level}d to level ${plan.next_level}`:''}</div>`+
     plan.focus_areas.map(f=>`<div style="margin:9px 0"><b style="text-transform:capitalize">${f.skill}</b> <span class="muted">(${Math.round(f.score)}%)</span><br><span style="font-size:13px">${esc(f.activities[0]||'')}</span></div>`).join('');
+}
+async function renderReport(){
+  if(!currentUser){$('#repHead').textContent='Select a learner.';return;}
+  let ov,fb,plan;
+  try{[ov,fb,plan]=await Promise.all([api.get(`/users/${currentUser}/progress`),api.get(`/users/${currentUser}/feedback`),api.get(`/users/${currentUser}/plan`)]);}catch{return;}
+  const eta=(ov.next_level!=null&&ov.estimated_days_to_next_level!=null)?`~${ov.estimated_days_to_next_level}d to level ${ov.next_level}`:'top level';
+  $('#repHead').innerHTML=`<b>${esc(ov.display_name)}</b> &nbsp;·&nbsp; Level ${ov.current_level} (${LEVELS[ov.current_level]}) &nbsp;·&nbsp; Overall ${ov.latest_overall!=null?Math.round(ov.latest_overall)+'%':'—'} &nbsp;·&nbsp; ${eta} &nbsp;·&nbsp; ${ov.assessments_count} assessments`;
+  const sc=ov.latest_scores||{};
+  $('#repSkills').innerHTML=DIMS.map(d=>{const v=Math.round(sc[d]??0),c=SKILL_COLORS[d];
+    return `<div class="skill"><div class="top"><b>${d}</b><span class="pct">${v}%</span></div><div class="bar"><i style="width:${v}%;background:linear-gradient(90deg,${c}88,${c})"></i></div></div>`;}).join('');
+  $('#repSW').innerHTML=`<div style="margin-bottom:12px"><span class="pill on">Strengths</span><div class="chips" style="margin-top:8px">${(fb.strengths||[]).map(s=>`<span class="chip" style="text-transform:capitalize">${s}</span>`).join('')||'<span class="muted">Keep practicing to build strengths.</span>'}</div></div>
+    <div><span class="pill off">Focus on</span><div class="chips" style="margin-top:8px">${(fb.weaknesses||[]).map(s=>`<span class="chip" style="text-transform:capitalize">${s}</span>`).join('')||'<span class="muted">All skills near target.</span>'}</div></div>
+    ${fb.pronunciation_tip?`<div class="muted" style="margin-top:14px">🗣 ${esc(fb.pronunciation_tip)}</div>`:''}`;
+  const corr=(fb.corrections||[]).slice(0,6).map(c=>`<div style="margin:8px 0;font-size:13px"><span style="color:var(--bad)">✗ ${esc(c.text||'')}</span> &nbsp;→&nbsp; <span style="color:var(--good)">✓ ${esc(c.correction||'')}</span></div>`).join('');
+  const vocab=(fb.vocabulary_suggestions||[]).length?`<div class="chips" style="margin-top:10px">${fb.vocabulary_suggestions.map(v=>`<span class="chip">${esc(v)}</span>`).join('')}</div>`:'';
+  $('#repCorr').innerHTML=(corr||'<span class="muted">No corrections yet — do a live Practice turn (needs the LLM evaluator running).</span>')+vocab;
+  renderPlan(plan,'#repPlan');
 }
 document.querySelectorAll('[data-fmt]').forEach(b=>b.addEventListener('click',()=>{if(!currentUser)return;window.open(`/users/${currentUser}/report?format=${b.dataset.fmt}`,'_blank');}));
 

@@ -6,6 +6,7 @@ import type {
   Plan,
   ProgressOverview,
   SkillPoint,
+  Stats,
   User,
 } from "./types";
 
@@ -37,10 +38,15 @@ export const api = {
   plan: (id: string) => req<Plan>(`/users/${id}/plan`),
   feedback: (id: string) => req<Feedback>(`/users/${id}/feedback`),
   models: () => req<ModelInfo[]>("/models"),
+  stats: () => req<Stats>("/stats"),
+  topics: () => req<{ recommended: string[] }>("/topics"),
+  setLevel: (id: string, level: number) =>
+    req<User>(`/users/${id}`, { method: "PATCH", body: JSON.stringify({ current_level: level }) }),
   reportUrl: (id: string, fmt: string) => `${API_BASE}/users/${id}/report?format=${fmt}`,
-  wsUrl: (id: string) => {
+  wsUrl: (id: string, topic?: string) => {
     const u = new URL(API_BASE);
     const proto = u.protocol === "https:" ? "wss" : "ws";
-    return `${proto}://${u.host}/ws/session?user_id=${encodeURIComponent(id)}&mode=free`;
+    const t = topic ? `&topic=${encodeURIComponent(topic)}` : "";
+    return `${proto}://${u.host}/ws/session?user_id=${encodeURIComponent(id)}&mode=free&ptt=1${t}`;
   },
 };
