@@ -69,7 +69,10 @@ The system is runnable after each phase.
   structured logging, Prometheus `/metrics`, and the `ResourceGuard` (background
   sampler + degradation ladder + hysteresis) with unit tests and the synthetic
   load test. No models loaded yet.
-- **Phase 1** — SQLite (WAL) persistence & per-user profiles, versioned scoring.
+- **Phase 1 — Persistence & per-user profiles** ✅: SQLite (WAL) store, DDD
+  aggregates, repositories, forward-only migrations, versioned append-only scoring,
+  REST for user CRUD + sessions/assessments + progress queries (trend, streak,
+  time-to-next-level), and `scripts/seed_user.py` for Abu Ali.
 - **Phase 2** — Model serving through the guard (vLLM Qwen3-8B/14B, Whisper turbo,
   wav2vec2 GOP, Kokoro-82M); `setup_models.py`, `benchmark_models.py`.
 - **Phase 3** — Hot path over WebSocket (<300ms first audio).
