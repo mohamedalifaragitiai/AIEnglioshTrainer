@@ -150,7 +150,11 @@ The system is runnable after each phase.
   trend, targeted activities per skill); post-session feedback (strengths/weaknesses/
   corrections); and one-click **JSON/CSV/Excel/PDF** report downloads. Endpoints under
   `/users/{id}/gaps|plan|feedback|report`, surfaced in the dashboard UI.
-- **Phase 6** — Next.js dashboard.
+- **Phase 6 — Dashboard (Next.js)** ✅: production dashboard in `frontend-next/`
+  (Next.js 14 App Router + TypeScript + Tailwind + Recharts) — stat tiles, skill
+  radar, overall trend, top gaps, adaptive plan, assessments table, report
+  downloads, and a live Practice page. REST + WebSocket, CORS-enabled. Coexists
+  with the zero-dependency `frontend/index.html` served by FastAPI.
 - **Phase 7** — Hardening: monitoring dashboards, soak tests, CI, docs.
 
 ## Golden rules

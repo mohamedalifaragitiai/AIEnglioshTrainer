@@ -1,0 +1,91 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { api } from "@/lib/api";
+import { useUser } from "@/app/user-context";
+
+export function Header() {
+  const { users, currentUser, setCurrentUser, refresh, modelsLoaded } = useUser();
+  const pathname = usePathname();
+
+  const newUser = async () => {
+    const id = prompt("New learner id (slug, e.g. abu_ali):");
+    if (!id) return;
+    const name = prompt("Display name:", id) || id;
+    try {
+      await api.createUser(id.trim(), name.trim());
+      setCurrentUser(id.trim());
+      await refresh();
+    } catch (e) {
+      alert("Could not create user:\n" + (e as Error).message);
+    }
+  };
+
+  const seed = async () => {
+    if (!currentUser) return alert("Select a learner first.");
+    try {
+      await api.seedDemo(currentUser);
+      await refresh();
+      location.reload();
+    } catch (e) {
+      alert("Seed failed:\n" + (e as Error).message);
+    }
+  };
+
+  const tab = (href: string, label: string) => (
+    <Link
+      href={href}
+      className={`px-3 py-1.5 border-b-2 ${
+        pathname === href ? "text-white border-accent" : "text-muted border-transparent"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+
+  return (
+    <header className="border-b border-line bg-panel">
+      <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
+        <h1 className="text-lg font-semibold">
+          AI English <span className="text-accent">Coach</span>
+        </h1>
+        <span
+          className={`pill ${
+            modelsLoaded === null
+              ? ""
+              : modelsLoaded
+                ? "bg-emerald-900 text-emerald-300"
+                : "bg-red-950 text-red-300"
+          }`}
+        >
+          models: {modelsLoaded === null ? "?" : modelsLoaded ? "loaded" : "off"}
+        </span>
+        <div className="flex-1" />
+        <label className="text-muted text-sm">Learner</label>
+        <select
+          className="btn"
+          value={currentUser ?? ""}
+          onChange={(e) => setCurrentUser(e.target.value)}
+        >
+          {users.length === 0 && <option value="">(no learners)</option>}
+          {users.map((u) => (
+            <option key={u.user_id} value={u.user_id}>
+              {u.display_name} ({u.user_id})
+            </option>
+          ))}
+        </select>
+        <button className="btn" onClick={newUser}>
+          + New
+        </button>
+        <button className="btn" onClick={seed}>
+          Load demo data
+        </button>
+      </div>
+      <nav className="flex gap-1 px-6">
+        {tab("/", "Dashboard")}
+        {tab("/practice", "Practice (live)")}
+      </nav>
+    </header>
+  );
+}
