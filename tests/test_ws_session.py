@@ -86,6 +86,39 @@ def test_ws_turn_streams_transcript_reply_audio_timings():
             ws.send_text(json.dumps({"type": "bye"}))
 
 
+def test_ws_turn_flows_to_cold_path_assessment():
+    """A live turn emits UtteranceFinalized -> the cold-path worker scores it ->
+    an assessment is stored (deterministic evaluators run even without the LLM)."""
+    import time
+
+    with TestClient(app) as client:
+        uid = "ws" + new_id()[:8]
+        client.post("/users", json={"user_id": uid, "display_name": "WS"})
+        client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
+
+        with client.websocket_connect(f"/ws/session?user_id={uid}") as ws:
+            ws.receive_json()  # session
+            for _ in range(12):
+                ws.send_bytes(_loud())
+            ws.send_text(json.dumps({"type": "end"}))
+            _drain_turn(ws)
+            ws.send_text(json.dumps({"type": "bye"}))
+
+        # Cold path runs on the app loop; poll until the assessment lands.
+        assessments = []
+        for _ in range(50):
+            assessments = client.get(f"/users/{uid}/assessments").json()
+            if assessments:
+                break
+            time.sleep(0.05)
+        assert len(assessments) == 1
+        a = assessments[0]
+        # Deterministic evaluators contributed; LLM dims absent (no vLLM in tests).
+        assert a["fluency"] is not None
+        assert a["pronunciation"] is not None
+        assert a["overall"] is not None
+
+
 def test_ws_rejects_unknown_user():
     with TestClient(app) as client:
         client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())

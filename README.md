@@ -121,7 +121,13 @@ The system is runnable after each phase.
   `HotPathPipeline` (one guard-gated turn, streamed, emits `UtteranceFinalized`);
   `/ws/session` WebSocket loop (PCM16 in → transcript/reply/audio out); and
   `scripts/profile_hotpath.py` proving the <300ms first-audio budget.
-- **Phase 4** — Cold-path evaluators + real GOP pronunciation + versioned scoring.
+- **Phase 4 — Cold-path evaluation & scoring** ✅: event worker consuming
+  `UtteranceFinalized` → batched LLM evaluator (grammar/vocab/listening/coherence/
+  relevance on the cold 14B, one JSON call) + deterministic fluency/confidence +
+  wav2vec2 GOP pronunciation (proxy fallback) → versioned weighted scoring
+  (renormalized over present dims) → profile update → `AssessmentReady`. Fully
+  **deferrable** under guard pressure and **idempotent**. `/users/{id}/assessments`
+  and `/utterances/{id}/evaluator-outputs` expose results.
 - **Phase 5** — Gap analysis, adaptive plans, reports (PDF/Excel/CSV/JSON).
 - **Phase 6** — Next.js dashboard.
 - **Phase 7** — Hardening: monitoring dashboards, soak tests, CI, docs.
