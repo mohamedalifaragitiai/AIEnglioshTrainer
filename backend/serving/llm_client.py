@@ -109,18 +109,23 @@ class VLLMClient:
         path: Path = "hot",
         max_tokens: int = 512,
         temperature: float = 0.7,
+        extra: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
         """Stream content deltas as they arrive (OpenAI SSE). Lets callers measure
-        time-to-first-token and pipe tokens into TTS. Honors guard degradation."""
+        time-to-first-token and pipe tokens into TTS. Honors guard degradation.
+        ``extra`` merges into the request body (e.g. chat_template_kwargs to disable
+        a reasoning model's thinking)."""
         effective_max = await self._admit(path, max_tokens)
         model = self.model_for(path)
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": effective_max,
             "temperature": temperature,
             "stream": True,
         }
+        if extra:
+            payload.update(extra)
         try:
             async with self._client.stream(
                 "POST", "/v1/chat/completions", json=payload

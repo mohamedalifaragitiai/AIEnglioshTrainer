@@ -42,6 +42,10 @@ class FakeDialogue:
         await asyncio.sleep(self.ms / 1000)
         return "That's a great point. Tell me more about it."
 
+    async def reply_stream(self, transcript: str, history: list[dict[str, str]]):
+        await asyncio.sleep(self.ms / 1000)
+        yield "That's a great point. Tell me more about it."
+
 
 class FakeTTS:
     def __init__(self, first_ms: float, chunk_ms: float, chunks: int):

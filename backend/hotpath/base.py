@@ -60,6 +60,9 @@ class STTStage(Protocol):
 @runtime_checkable
 class DialogueStage(Protocol):
     async def reply(self, transcript: str, history: list[dict[str, str]]) -> str: ...
+    def reply_stream(
+        self, transcript: str, history: list[dict[str, str]]
+    ) -> AsyncIterator[str]: ...
 
 
 @runtime_checkable

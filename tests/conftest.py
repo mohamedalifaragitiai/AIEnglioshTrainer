@@ -17,6 +17,11 @@ for _suffix in ("", "-wal", "-shm"):
         _p.unlink()
 os.environ["COACH_DB_PATH"] = str(_TEST_DB)
 os.environ["COACH_REPORT_DIR"] = str(_TEST_DB_DIR / "reports")
+# Isolate tests from any local .env used for a live runtime (env vars win over .env):
+# never load real models, keep the LLM server unreachable, use the default VRAM budget.
+os.environ["COACH_LOAD_MODELS"] = "false"
+os.environ["COACH_VLLM_BASE_URL"] = "http://127.0.0.1:59999"
+os.environ["COACH_VLLM_VRAM_FRACTION"] = "0.68"
 
 import pytest  # noqa: E402
 

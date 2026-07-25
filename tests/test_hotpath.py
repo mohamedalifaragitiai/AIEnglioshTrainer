@@ -31,6 +31,9 @@ class FakeDialogue:
     async def reply(self, transcript, history):
         return self.reply_text
 
+    async def reply_stream(self, transcript, history):
+        yield self.reply_text
+
 
 class FakeTTS:
     def __init__(self, chunks=3, fail=False):

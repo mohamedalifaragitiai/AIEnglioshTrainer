@@ -86,41 +86,41 @@ class HotPathPipeline:
         metrics.hotpath_stage_seconds.labels("stt").observe(timings.stt_ms / 1000)
         yield HotEvent(HotEventKind.FINAL, text=transcript, meta={"confidence": confidence})
 
-        # --- Dialogue (single LLM call) ---
-        t = perf_counter()
-        try:
-            reply = await self.dialogue.reply(transcript, ctx.history)
-        except Exception as exc:  # noqa: BLE001
-            metrics.hotpath_turns_total.labels("error").inc()
-            log.error("dialogue_failed", error=str(exc))
-            yield HotEvent(HotEventKind.ERROR, text=f"llm: {exc}")
-            return
-        timings.llm_ms = (perf_counter() - t) * 1000
-        metrics.hotpath_stage_seconds.labels("llm").observe(timings.llm_ms / 1000)
-        yield HotEvent(HotEventKind.REPLY, text=reply)
-
-        # --- TTS (streamed) ---
+        # --- Dialogue -> TTS, streamed sentence-by-sentence ---
+        # The reply streams a sentence at a time; each is spoken immediately, so the
+        # first audio leaves after the first phrase — not the whole reply. TTS runs
+        # while the LLM is still generating the rest.
         await self.guard.acquire(ResourceEstimate(gpu_util_frac=0.2), "hot")
-        tts_start = perf_counter()
+        llm_start = perf_counter()
+        first_token_at: float | None = None
         first_chunk_at: float | None = None
+        reply_parts: list[str] = []
         try:
-            async for chunk in self.tts.synthesize_stream(reply):
-                now = perf_counter()
-                if first_chunk_at is None:
-                    first_chunk_at = now
-                    timings.tts_first_ms = (now - tts_start) * 1000
-                    timings.first_audio_ms = (now - t0) * 1000
-                    metrics.hotpath_first_audio_seconds.observe(timings.first_audio_ms / 1000)
-                    metrics.hotpath_stage_seconds.labels("tts_first").observe(
-                        timings.tts_first_ms / 1000
-                    )
-                yield HotEvent(HotEventKind.AUDIO, audio=chunk)
+            async for phrase in self.dialogue.reply_stream(transcript, ctx.history):
+                if first_token_at is None:
+                    first_token_at = perf_counter()
+                    timings.llm_ms = (first_token_at - llm_start) * 1000  # time-to-first-sentence
+                    metrics.hotpath_stage_seconds.labels("llm").observe(timings.llm_ms / 1000)
+                reply_parts.append(phrase)
+                yield HotEvent(HotEventKind.REPLY, text=phrase, meta={"partial": True})
+                async for chunk in self.tts.synthesize_stream(phrase):
+                    if first_chunk_at is None:
+                        first_chunk_at = perf_counter()
+                        timings.tts_first_ms = (first_chunk_at - first_token_at) * 1000
+                        timings.first_audio_ms = (first_chunk_at - t0) * 1000
+                        metrics.hotpath_first_audio_seconds.observe(timings.first_audio_ms / 1000)
+                        metrics.hotpath_stage_seconds.labels("tts_first").observe(
+                            timings.tts_first_ms / 1000
+                        )
+                    yield HotEvent(HotEventKind.AUDIO, audio=chunk)
         except Exception as exc:  # noqa: BLE001
             metrics.hotpath_turns_total.labels("error").inc()
-            log.error("tts_failed", error=str(exc))
-            yield HotEvent(HotEventKind.ERROR, text=f"tts: {exc}")
+            log.error("dialogue_or_tts_failed", error=str(exc))
+            yield HotEvent(HotEventKind.ERROR, text=f"llm/tts: {exc}")
             return
-        timings.tts_total_ms = (perf_counter() - tts_start) * 1000
+
+        reply = " ".join(reply_parts).strip()
+        timings.tts_total_ms = (perf_counter() - llm_start) * 1000
         metrics.hotpath_stage_seconds.labels("tts_total").observe(timings.tts_total_ms / 1000)
 
         # --- persist + emit (turn is already returning to the learner) ---

@@ -129,7 +129,7 @@ async def _run_turn(
     ws: WebSocket, pipeline: HotPathPipeline, ctx: TurnContext, pcm: bytes
 ) -> None:
     transcript = ""
-    reply = ""
+    reply_parts: list[str] = []
     async for ev in pipeline.run_turn(pcm, ctx):
         if ev.kind == HotEventKind.FINAL:
             transcript = ev.text or ""
@@ -137,8 +137,11 @@ async def _run_turn(
                 json.dumps({"type": "final", "text": transcript, **ev.meta})
             )
         elif ev.kind == HotEventKind.REPLY:
-            reply = ev.text or ""
-            await ws.send_text(json.dumps({"type": "reply", "text": reply}))
+            # The reply streams a sentence at a time; forward each as a partial.
+            reply_parts.append(ev.text or "")
+            await ws.send_text(
+                json.dumps({"type": "reply", "text": ev.text or "", "partial": True})
+            )
         elif ev.kind == HotEventKind.AUDIO and ev.audio is not None:
             await ws.send_bytes(ev.audio)
         elif ev.kind == HotEventKind.TIMINGS and ev.timings is not None:
@@ -146,6 +149,7 @@ async def _run_turn(
         elif ev.kind == HotEventKind.ERROR:
             await ws.send_text(json.dumps({"type": "error", "detail": ev.text}))
     # Update rolling conversation context for the next turn.
+    reply = " ".join(reply_parts).strip()
     if transcript:
         ctx.history.append({"role": "user", "content": transcript})
     if reply:
