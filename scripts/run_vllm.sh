@@ -33,14 +33,38 @@ VENV="$HOME/.vllm-venv"
 if [ ! -d "$VENV" ]; then
   echo "==> Creating vLLM venv at $VENV"
   uv venv "$VENV" --python 3.12
-  uv pip install --python "$VENV/bin/python" vllm
 fi
+# --torch-backend=auto detects the installed NVIDIA driver's CUDA version and picks
+# matching wheels — avoids pulling a CUDA-13 build onto a CUDA-12.x driver
+# ("driver too old"). Set VLLM_VERSION to pin a build whose *kernels* also target
+# your CUDA (recent vLLM ships CUDA-13-only wheels needing driver 580+). Idempotent.
+if ! "$VENV/bin/python" -c "import vllm" 2>/dev/null; then
+  SPEC="vllm${VLLM_VERSION:+==$VLLM_VERSION}"
+  echo "==> Installing $SPEC (torch backend auto-matched to the driver)"
+  uv pip install --python "$VENV/bin/python" --torch-backend=auto "$SPEC"
+  # Older vLLM (pinned for CUDA compat) predates transformers 5.x, which removed
+  # tokenizer internals it relies on — cap it at 4.x when pinning an old vLLM.
+  if [ -n "${VLLM_VERSION:-}" ]; then
+    uv pip install --python "$VENV/bin/python" "transformers<5"
+  fi
+fi
+
+# Fail fast with a clear message if the CUDA runtime doesn't match the driver,
+# before paying for a multi-GB model download.
+"$VENV/bin/python" -c "import torch, vllm; print('CUDA CHECK: torch', torch.__version__, '| cuda', torch.version.cuda, '| vllm', vllm.__version__)"
 
 echo "==> Serving $MODEL on 127.0.0.1:$PORT (gpu-util $GPU_UTIL, max-len $MAX_LEN)"
 echo "    First run downloads the weights (multi-GB, one-time)."
+# --enforce-eager disables torch.compile/CUDA-graph capture, which otherwise needs a
+# C compiler (gcc) at load. Set VLLM_EAGER=0 to enable compilation if gcc is present
+# (build-essential) for maximum throughput.
+EAGER_FLAG="--enforce-eager"
+[ "${VLLM_EAGER:-1}" = "0" ] && EAGER_FLAG=""
+
 exec "$VENV/bin/python" -m vllm.entrypoints.openai.api_server \
   --model "$MODEL" \
   --served-model-name "$MODEL" \
   --host 127.0.0.1 --port "$PORT" \
   --gpu-memory-utilization "$GPU_UTIL" \
-  --max-model-len "$MAX_LEN"
+  --max-model-len "$MAX_LEN" \
+  $EAGER_FLAG
