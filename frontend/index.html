@@ -319,8 +319,15 @@ const TTS_RATE = 24000; // Kokoro output rate (used only when models are on)
 
 function addMsg(who, text) {
   const d=document.createElement('div'); d.className='msg '+(who==='user'?'user':'coach');
-  d.innerHTML=`<div class="who">${who==='user'?'You':'Coach'}</div>`+escapeHtml(text);
+  d.innerHTML=`<div class="who">${who==='user'?'You':'Coach'}</div><span class="body">${escapeHtml(text)}</span>`;
   $('#conv').appendChild(d); $('#conv').scrollTop=$('#conv').scrollHeight; return d;
+}
+let currentCoach = null; // coach bubble for the in-progress streamed reply
+function appendCoach(piece) {
+  if (!currentCoach) currentCoach = addMsg('coach','');
+  const body = currentCoach.querySelector('.body');
+  body.textContent += (body.textContent ? ' ' : '') + piece;
+  $('#conv').scrollTop = $('#conv').scrollHeight;
 }
 function escapeHtml(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
@@ -367,10 +374,10 @@ function stopMic() {
 }
 
 function handleControl(m) {
-  if (m.type==='final') addMsg('user', m.text || '(…)');
-  else if (m.type==='reply') addMsg('coach', m.text || '');
-  else if (m.type==='turn_end') { const t=m.timings; $('#turnTimings').textContent = `first audio ${t.first_audio_ms}ms · stt ${t.stt_ms} · llm ${t.llm_ms}`; }
-  else if (m.type==='error') addMsg('coach', '⚠ ' + (m.detail||'error'));
+  if (m.type==='final') { addMsg('user', m.text || '(…)'); currentCoach=null; }
+  else if (m.type==='reply') appendCoach(m.text || '');
+  else if (m.type==='turn_end') { currentCoach=null; const t=m.timings; $('#turnTimings').textContent = `first audio ${t.first_audio_ms}ms · stt ${t.stt_ms} · llm ${t.llm_ms}`; }
+  else if (m.type==='error') { addMsg('coach', '⚠ ' + (m.detail||'error')); currentCoach=null; }
   else if (m.type==='session') { /* ready */ }
 }
 

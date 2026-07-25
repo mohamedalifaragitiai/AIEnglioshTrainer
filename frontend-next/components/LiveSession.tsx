@@ -17,8 +17,22 @@ export function LiveSession({ userId }: { userId: string }) {
   const stream = useRef<MediaStream | null>(null);
   const proc = useRef<ScriptProcessorNode | null>(null);
   const playHead = useRef(0);
+  const coachOpen = useRef(false); // are we mid-stream on a coach reply?
 
   const add = (m: Msg) => setMessages((prev) => [...prev, m]);
+
+  const appendCoach = (piece: string) => {
+    const cont = coachOpen.current;
+    coachOpen.current = true;
+    setMessages((prev) => {
+      if (cont && prev.length && prev[prev.length - 1].who === "coach") {
+        const last = prev[prev.length - 1];
+        const merged = { ...last, text: (last.text ? last.text + " " : "") + piece };
+        return [...prev.slice(0, -1), merged];
+      }
+      return [...prev, { who: "coach", text: piece }];
+    });
+  };
 
   function floatTo16kPCM(input: Float32Array, inRate: number): ArrayBuffer {
     const ratio = inRate / 16000;
@@ -67,13 +81,20 @@ export function LiveSession({ userId }: { userId: string }) {
     socket.onmessage = (ev) => {
       if (typeof ev.data === "string") {
         const m = JSON.parse(ev.data);
-        if (m.type === "final") add({ who: "user", text: m.text || "(…)" });
-        else if (m.type === "reply") add({ who: "coach", text: m.text || "" });
-        else if (m.type === "turn_end")
+        if (m.type === "final") {
+          coachOpen.current = false;
+          add({ who: "user", text: m.text || "(…)" });
+        } else if (m.type === "reply") {
+          appendCoach(m.text || "");
+        } else if (m.type === "turn_end") {
+          coachOpen.current = false;
           setTimings(
             `first audio ${m.timings.first_audio_ms}ms · stt ${m.timings.stt_ms} · llm ${m.timings.llm_ms}`,
           );
-        else if (m.type === "error") add({ who: "coach", text: "⚠ " + (m.detail || "error") });
+        } else if (m.type === "error") {
+          coachOpen.current = false;
+          add({ who: "coach", text: "⚠ " + (m.detail || "error") });
+        }
       } else {
         playPCM(new Int16Array(ev.data as ArrayBuffer));
       }
