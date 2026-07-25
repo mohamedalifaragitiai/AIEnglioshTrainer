@@ -68,6 +68,39 @@ guard_sample_duration_seconds = Histogram(
 )
 
 
+# --- Model serving metrics (Phase 2) ----------------------------------------
+
+model_loaded = Gauge(
+    "model_loaded",
+    "1 if a model is loaded/ready, 0 otherwise.",
+    ["model", "kind"],
+    registry=REGISTRY,
+)
+
+model_vram_estimate_gb = Gauge(
+    "model_vram_estimate_gb",
+    "Estimated resident VRAM for a model (GB).",
+    ["model", "kind"],
+    registry=REGISTRY,
+)
+
+model_load_duration_seconds = Histogram(
+    "model_load_duration_seconds",
+    "Wall time to load a model through the guard.",
+    ["model", "kind"],
+    registry=REGISTRY,
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+
+llm_request_duration_seconds = Histogram(
+    "llm_request_duration_seconds",
+    "Latency of an LLM chat request to the vLLM server.",
+    ["model", "path"],
+    registry=REGISTRY,
+    buckets=(0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0, 10.0),
+)
+
+
 def render_metrics() -> bytes:
     """Serialize the registry in Prometheus text exposition format."""
     return generate_latest(REGISTRY)

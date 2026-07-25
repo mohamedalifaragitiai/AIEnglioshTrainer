@@ -61,6 +61,43 @@ freeze this project prevents. It asserts the guard climbs the degradation ladder
 defers cold-path work, and rejects new sessions at the ceiling while never blocking
 the in-flight learner turn.
 
+## Enabling models (Phase 2, opt-in)
+
+No weights ship with the repo and none download automatically. The app boots with
+model loading **off** (`COACH_LOAD_MODELS=false`) and reports specs/budget at
+`/models`. To actually serve models:
+
+```bash
+# 1. See the plan, disk/VRAM budget, and dep status (downloads nothing):
+uv run python scripts/setup_models.py
+
+# 2. Install the opt-in ML runtime (kept out of the default env):
+uv sync --group models
+#    torch + transformers + kokoro are host/CUDA-specific — install per your box
+#    (on Windows, use WSL2 + the CUDA wheel index) since vLLM needs Linux anyway.
+
+# 3. Fetch the resident GPU weights (STT + GOP + TTS) into ./models:
+uv run python scripts/setup_models.py --download
+
+# 4. Start the LLM server as a SEPARATE process (native Linux/WSL2), OpenAI-API:
+#    uv run vllm serve Qwen/Qwen3-8B --gpu-memory-utilization 0.68 --port 8001
+
+# 5. Measure real latency/VRAM, then enable loading (guard verifies the budget):
+uv run python scripts/benchmark_models.py
+COACH_LOAD_MODELS=true uv run uvicorn backend.main:app --port 8000
+```
+
+When `COACH_LOAD_MODELS=true`, startup runs `guard.check_startup_budget` and
+**refuses to start** with an actionable message if the resident set (vLLM
+reservation + Whisper + GOP + TTS) would cross the 96% VRAM ceiling — rather than
+OOM-crashing later. On the 16GB reference GPU the default set fits at ~16.0/16.4GB;
+lower `COACH_VLLM_VRAM_FRACTION` or move TTS to CPU if your measured footprints run
+higher.
+
+> **Windows note:** vLLM has no native Windows build — run the vLLM server under
+> WSL2/Linux (or a remote localhost). The app itself is pure-Python and talks to it
+> over HTTP, so the FastAPI app runs fine natively on Windows.
+
 ## Build phases
 
 The system is runnable after each phase.
@@ -73,8 +110,12 @@ The system is runnable after each phase.
   aggregates, repositories, forward-only migrations, versioned append-only scoring,
   REST for user CRUD + sessions/assessments + progress queries (trend, streak,
   time-to-next-level), and `scripts/seed_user.py` for Abu Ali.
-- **Phase 2** — Model serving through the guard (vLLM Qwen3-8B/14B, Whisper turbo,
-  wav2vec2 GOP, Kokoro-82M); `setup_models.py`, `benchmark_models.py`.
+- **Phase 2 — Model serving through the guard** ✅: `ManagedModel`/`ModelRegistry`
+  that refuses to start if the resident set won't fit under the 96% VRAM ceiling;
+  OpenAI-compatible vLLM HTTP client (hot 8B / cold 14B, guard-aware); lazy-loaded
+  Whisper-turbo / wav2vec2-GOP / Kokoro adapters (opt-in `models` dep group);
+  `/models` status + budget API; `setup_models.py` (check-first, logged downloads)
+  and `benchmark_models.py`. Weights are **not** bundled — see *Enabling models*.
 - **Phase 3** — Hot path over WebSocket (<300ms first audio).
 - **Phase 4** — Cold-path evaluators + real GOP pronunciation + versioned scoring.
 - **Phase 5** — Gap analysis, adaptive plans, reports (PDF/Excel/CSV/JSON).

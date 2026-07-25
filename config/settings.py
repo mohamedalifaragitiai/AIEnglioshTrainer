@@ -62,6 +62,40 @@ class Settings(BaseSettings):
     # VRAM it may hand out. Not loaded in Phase 0, but budgeted here from the start.
     vllm_vram_fraction: float = Field(default=0.68, ge=0.0, le=0.96)
 
+    # --- Model serving (Phase 2) -------------------------------------------
+    # Loading is OFF by default so the app boots without any weights present.
+    # Turn on only after `setup_models.py` has fetched weights and (for the LLM)
+    # a vLLM server is running. When on, startup refuses to proceed if the
+    # minimum resident set won't fit under the 96% VRAM ceiling.
+    load_models: bool = False
+
+    # vLLM runs as a SEPARATE process (native Linux/WSL2 on Windows) exposing an
+    # OpenAI-compatible API. The app never imports vLLM; it only talks HTTP.
+    vllm_base_url: str = "http://127.0.0.1:8001"
+    vllm_hot_model: str = "Qwen/Qwen3-8B"      # fast live dialogue
+    vllm_cold_model: str = "Qwen/Qwen3-14B"    # cold-path assessment
+    vllm_request_timeout_s: float = 60.0
+
+    # Faster-Whisper STT (hot path). float16 on GPU, int8 on CPU fallback.
+    enable_stt: bool = True
+    stt_model: str = "large-v3-turbo"
+    stt_device: str = "cuda"
+    stt_compute_type: str = "float16"
+    stt_vram_gb: float = 1.8  # estimate; benchmark_models.py refines with measured VRAM
+
+    # wav2vec2 GOP pronunciation (cold path). Real GOP algorithm lands in Phase 4;
+    # Phase 2 loads/health-checks the model through the guard.
+    enable_gop: bool = True
+    gop_model: str = "facebook/wav2vec2-lv-60-espeak-cv-ft"  # phoneme CTC
+    gop_device: str = "cuda"
+    gop_vram_gb: float = 1.6  # estimate; refined by benchmark_models.py
+
+    # Kokoro-82M TTS (hot path, own process/GPU).
+    enable_tts: bool = True
+    tts_model: str = "hexgrad/Kokoro-82M"
+    tts_device: str = "cuda"
+    tts_vram_gb: float = 0.6  # estimate; refined by benchmark_models.py
+
     # --- Paths -------------------------------------------------------------
     data_dir: Path = _REPO_ROOT / "data"
     models_dir: Path = _REPO_ROOT / "models"
