@@ -12,6 +12,7 @@ __pycache__/
 .env
 /data/
 /models/
+/reports/
 
 # OS / editor
 .DS_Store

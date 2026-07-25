@@ -145,7 +145,11 @@ The system is runnable after each phase.
   (renormalized over present dims) → profile update → `AssessmentReady`. Fully
   **deferrable** under guard pressure and **idempotent**. `/users/{id}/assessments`
   and `/utterances/{id}/evaluator-outputs` expose results.
-- **Phase 5** — Gap analysis, adaptive plans, reports (PDF/Excel/CSV/JSON).
+- **Phase 5 — Gap analysis, plans & reports** ✅: importance-weighted ranked gaps +
+  gap snapshots + most-improved; adaptive study planner (difficulty from the recent
+  trend, targeted activities per skill); post-session feedback (strengths/weaknesses/
+  corrections); and one-click **JSON/CSV/Excel/PDF** report downloads. Endpoints under
+  `/users/{id}/gaps|plan|feedback|report`, surfaced in the dashboard UI.
 - **Phase 6** — Next.js dashboard.
 - **Phase 7** — Hardening: monitoring dashboards, soak tests, CI, docs.
 

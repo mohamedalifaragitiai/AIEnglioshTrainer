@@ -121,6 +121,16 @@ class Settings(BaseSettings):
     db_path: Path | None = None
     # Where learner-turn audio is written (for cold-path re-analysis). None = off.
     audio_dir: Path | None = None
+    # Where generated report files are written. None = <data_dir>/reports.
+    report_dir: Path | None = None
+
+    # --- Gap analysis / plans (Phase 5) ------------------------------------
+    # Per-dimension target score used to size gaps (85 ~ "fluent" band).
+    gap_target_score: float = 85.0
+
+    @property
+    def resolved_report_dir(self) -> Path:
+        return self.report_dir or (self.data_dir / "reports")
 
     @field_validator("log_level")
     @classmethod

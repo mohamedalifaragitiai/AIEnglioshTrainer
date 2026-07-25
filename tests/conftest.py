@@ -16,6 +16,7 @@ for _suffix in ("", "-wal", "-shm"):
     if _p.exists():
         _p.unlink()
 os.environ["COACH_DB_PATH"] = str(_TEST_DB)
+os.environ["COACH_REPORT_DIR"] = str(_TEST_DB_DIR / "reports")
 
 import pytest  # noqa: E402
 
