@@ -13,11 +13,14 @@ No models are loaded yet. Model loading (Phase 2) will go through
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Response
+from fastapi.responses import FileResponse
 from starlette.websockets import WebSocket
 
 from backend.api import assessments as assessments_router
+from backend.api import dev as dev_router
 from backend.api import models as models_router
 from backend.api import progress as progress_router
 from backend.api import sessions as sessions_router
@@ -180,3 +183,13 @@ app.include_router(sessions_router.router)
 app.include_router(progress_router.router)
 app.include_router(models_router.router)
 app.include_router(assessments_router.router)
+app.include_router(dev_router.router)
+
+
+_FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+async def index() -> FileResponse:
+    """Serve the built-in single-page UI (dashboard + live practice)."""
+    return FileResponse(_FRONTEND)
