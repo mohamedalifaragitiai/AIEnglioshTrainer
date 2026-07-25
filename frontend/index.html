@@ -103,8 +103,28 @@
       </div>
     </div>
     <div style="height:16px"></div>
+    <div class="grid cols">
+      <div class="card">
+        <h3>Top gaps</h3>
+        <div id="gaps"></div>
+      </div>
+      <div class="card">
+        <h3>Study plan</h3>
+        <div id="plan"></div>
+      </div>
+    </div>
+    <div style="height:16px"></div>
     <div class="card">
-      <h3>Recent assessments</h3>
+      <div class="row" style="justify-content:space-between; margin-bottom:6px">
+        <h3 style="margin:0">Recent assessments</h3>
+        <div class="row">
+          <span class="muted" style="font-size:12px">Download report:</span>
+          <button data-fmt="json">JSON</button>
+          <button data-fmt="csv">CSV</button>
+          <button data-fmt="xlsx">Excel</button>
+          <button data-fmt="pdf">PDF</button>
+        </div>
+      </div>
       <div style="overflow-x:auto"><table id="assessTable"></table></div>
     </div>
   </section>
@@ -214,6 +234,7 @@ async function renderDashboard() {
 
   drawRadar('radar', ov.latest_scores || {});
   drawTrend('trend', trend);
+  renderInsights();
 
   const rows = assess.slice(-12).reverse();
   $('#assessTable').innerHTML =
@@ -222,6 +243,40 @@ async function renderDashboard() {
       DIMS.map(d => `<td>${a[d]!=null?Math.round(a[d]):'·'}</td>`).join('') +
       `<td class="muted">${a.scoring_model_version}</td></tr>`).join('');
 }
+
+async function renderInsights() {
+  if (!currentUser) { $('#gaps').innerHTML=''; $('#plan').innerHTML=''; return; }
+  let gaps=[], plan=null;
+  try { gaps = await api.get(`/users/${currentUser}/gaps`); plan = await api.get(`/users/${currentUser}/plan`); }
+  catch { $('#gaps').innerHTML='<span class="muted">No data yet.</span>'; $('#plan').innerHTML=''; return; }
+
+  if (!gaps.length) { $('#gaps').innerHTML='<span class="muted">No assessments yet.</span>'; }
+  else {
+    $('#gaps').innerHTML = gaps.slice(0,5).map(g => {
+      const pct = Math.round((g.score/100)*100);
+      return `<div style="margin:8px 0">
+        <div class="row" style="justify-content:space-between"><span>${g.skill}</span>
+          <span class="muted">${Math.round(g.score)}/${Math.round(g.target)}</span></div>
+        <div style="height:8px;background:var(--panel2);border-radius:5px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#f87171,#34d399)"></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  if (plan) {
+    $('#plan').innerHTML =
+      `<p style="margin:0 0 10px">${escapeHtml(plan.summary)}</p>` +
+      `<div class="muted" style="font-size:12px;margin-bottom:8px">difficulty ${plan.difficulty} · horizon ${plan.horizon.replace('_',' ')}` +
+      (plan.estimated_days_to_next_level!=null?` · ~${plan.estimated_days_to_next_level}d to level ${plan.next_level}`:'') + `</div>` +
+      plan.focus_areas.map(f => `<div style="margin:8px 0"><b>${f.skill}</b> <span class="muted">(${Math.round(f.score)})</span><br>
+        <span style="font-size:13px">${escapeHtml(f.activities[0]||'')}</span></div>`).join('');
+  }
+}
+
+document.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => {
+  if (!currentUser) { alert('Select a learner first.'); return; }
+  window.open(`/users/${currentUser}/report?format=${b.dataset.fmt}`, '_blank');
+}));
 
 function fmtDate(iso) { try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch { return iso.slice(0,10); } }
 function clearCanvas(id){ const c=$('#'+id); c.getContext('2d').clearRect(0,0,c.width,c.height); }

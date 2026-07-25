@@ -109,6 +109,55 @@ class SkillPoint(BaseModel):
     value: float
 
 
+class GapItem(BaseModel):
+    """One ranked skill gap: how far below target and how much it matters."""
+
+    skill: str
+    score: float
+    target: float
+    gap: float           # points below target (>= 0)
+    severity: float      # weighted 0..1 (importance x shortfall) — the ranking key
+    rank: int
+
+
+class ImprovementItem(BaseModel):
+    skill: str
+    then: float
+    now: float
+    delta: float         # now - then (positive = improved)
+
+
+class FocusArea(BaseModel):
+    skill: str
+    score: float
+    why: str
+    activities: list[str]
+
+
+class Plan(BaseModel):
+    user_id: str
+    created_at: str
+    horizon: str
+    difficulty: float                       # 0..1 adaptive difficulty
+    next_level: int | None = None
+    estimated_days_to_next_level: float | None = None
+    focus_areas: list[FocusArea] = Field(default_factory=list)
+    summary: str = ""
+
+
+class Feedback(BaseModel):
+    user_id: str
+    overall: float | None = None
+    current_level: int = 0
+    next_level: int | None = None
+    estimated_days_to_next_level: float | None = None
+    strengths: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
+    corrections: list[dict] = Field(default_factory=list)     # {text, correction, type}
+    vocabulary_suggestions: list[str] = Field(default_factory=list)
+    pronunciation_tip: str | None = None
+
+
 class ProgressOverview(BaseModel):
     """Everything the dashboard needs for a user's headline view."""
 

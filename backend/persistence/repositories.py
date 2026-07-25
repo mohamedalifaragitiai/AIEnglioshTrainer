@@ -394,6 +394,52 @@ class GapSnapshotRepository:
         return GapSnapshot(**row) if row else None
 
 
+class PlanRepository:
+    def __init__(self, db: Database):
+        self.db = db
+
+    def add(self, user_id: str, horizon: str, plan_json: str) -> str:
+        plan_id = new_id("plan")
+        with self.db.connection() as con:
+            con.execute(
+                "INSERT INTO plans(plan_id, user_id, created_at, horizon, plan_json)"
+                " VALUES (?,?,?,?,?)",
+                (plan_id, user_id, now_iso(), horizon, plan_json),
+            )
+        return plan_id
+
+    def latest(self, user_id: str) -> dict | None:
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT * FROM plans WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
+                (user_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+
+class ReportRepository:
+    def __init__(self, db: Database):
+        self.db = db
+
+    def add(self, user_id: str, period: str, fmt: str, path: str) -> str:
+        report_id = new_id("report")
+        with self.db.connection() as con:
+            con.execute(
+                "INSERT INTO reports(report_id, user_id, period, created_at, format, path)"
+                " VALUES (?,?,?,?,?,?)",
+                (report_id, user_id, period, now_iso(), fmt, path),
+            )
+        return report_id
+
+    def list_for_user(self, user_id: str, limit: int = 100) -> list[dict]:
+        with self.db.connection() as con:
+            rows = con.execute(
+                "SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def is_unique_violation(exc: Exception) -> bool:
     """True if `exc` is a SQLite UNIQUE/PK constraint failure (e.g. duplicate user)."""
     return isinstance(exc, sqlite3.IntegrityError) and "UNIQUE" in str(exc).upper()
