@@ -32,6 +32,20 @@ DIMENSIONS: tuple[str, ...] = (
 # Current scoring version. Bump on ANY change to weights or level thresholds.
 SCORING_MODEL_VERSION = "v1"
 
+# Custom 0-5 proficiency scale (see references/scoring.md).
+LEVEL_NAMES: tuple[str, ...] = (
+    "Beginner",
+    "Intermediate",
+    "Advanced",
+    "Professional",
+    "Fluent",
+    "Native-like",
+)
+
+
+def level_name(level: int) -> str:
+    return LEVEL_NAMES[max(0, min(len(LEVEL_NAMES) - 1, level))]
+
 
 @dataclass(frozen=True)
 class ScoringModel:

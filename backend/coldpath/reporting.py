@@ -109,41 +109,105 @@ def render_pdf(data: ReportData) -> bytes:
     from reportlab.lib.units import cm
     from reportlab.pdfgen import canvas
 
-    ov = data.overview
+    from backend.coldpath.scoring import level_name
+
+    ov, fb, plan = data.overview, data.feedback, data.plan
+    latest = data.assessments[-1] if data.assessments else None
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
-    width, height = A4
-    y = height - 2 * cm
+    W, H = A4
+    M = 2 * cm
+    y = H - 1.6 * cm
+    teal, ink, grey = (0.09, 0.55, 0.5), (0.12, 0.16, 0.24), (0.42, 0.47, 0.55)
 
-    def line(text: str, size: int = 11, dy: float = 0.6 * cm, bold: bool = False) -> None:
+    def text(s, size=10.5, dy=0.52 * cm, bold=False, color=ink, indent=0.0):
         nonlocal y
+        c.setFillColorRGB(*color)
         c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
-        c.drawString(2 * cm, y, text[:110])
+        c.drawString(M + indent, y, str(s)[:118])
         y -= dy
 
-    line("AI English Coach — Progress Report", 16, 1.0 * cm, bold=True)
-    line(f"Learner: {ov.display_name} ({ov.user_id})", 12, bold=True)
-    line(f"Level {ov.current_level}  |  Streak {ov.streak_days}d  |  "
-         f"Overall {round(ov.latest_overall) if ov.latest_overall else '-'}  |  "
-         f"ETA to next level: {ov.estimated_days_to_next_level or '-'} days")
-    y -= 0.3 * cm
-    line("Ranked gaps", 13, bold=True)
-    for g in data.gaps[:8]:
-        line(f"  {g.rank}. {g.skill}: {g.score:.0f}/{g.target:.0f}  "
-             f"(gap {g.gap:.0f}, severity {g.severity:.2f})")
-    y -= 0.2 * cm
-    line("Study plan", 13, bold=True)
-    line(f"  {data.plan.summary}")
-    for fa in data.plan.focus_areas:
-        activity = fa.activities[0] if fa.activities else ""
-        line(f"  - {fa.skill} ({fa.score:.0f}): {activity}", 10, 0.5 * cm)
-    y -= 0.2 * cm
-    line("Feedback", 13, bold=True)
-    line(f"  Strengths: {', '.join(data.feedback.strengths) or '-'}", 10, 0.5 * cm)
-    line(f"  To improve: {', '.join(data.feedback.weaknesses) or '-'}", 10, 0.5 * cm)
-    if data.feedback.pronunciation_tip:
-        line(f"  Tip: {data.feedback.pronunciation_tip}", 10, 0.5 * cm)
+    def heading(s):
+        nonlocal y
+        y -= 0.15 * cm
+        c.setFillColorRGB(*teal)
+        c.rect(M, y - 0.05 * cm, 0.28 * cm, 0.42 * cm, fill=1, stroke=0)
+        c.setFillColorRGB(*ink)
+        c.setFont("Helvetica-Bold", 12.5)
+        c.drawString(M + 0.45 * cm, y, s)
+        y -= 0.62 * cm
 
+    def bar(skill, pct):
+        nonlocal y
+        c.setFillColorRGB(*ink)
+        c.setFont("Helvetica", 10)
+        c.drawString(M, y, skill.capitalize())
+        c.setFillColorRGB(*grey)
+        c.drawRightString(W - M, y, f"{pct:.0f}%")
+        bx, bw = M + 3.2 * cm, W - 2 * M - 4.6 * cm
+        c.setFillColorRGB(0.86, 0.89, 0.94)
+        c.roundRect(bx, y - 0.05 * cm, bw, 0.28 * cm, 0.14 * cm, fill=1, stroke=0)
+        c.setFillColorRGB(*teal)
+        c.roundRect(bx, y - 0.05 * cm, max(0.14 * cm, bw * pct / 100), 0.28 * cm,
+                    0.14 * cm, fill=1, stroke=0)
+        y -= 0.56 * cm
+
+    # header band
+    c.setFillColorRGB(*teal)
+    c.rect(0, H - 1.15 * cm, W, 1.15 * cm, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 15)
+    c.drawString(M, H - 0.78 * cm, "AI English Coach — Progress Report")
+    y = H - 1.9 * cm
+
+    text(f"{ov.display_name}", 15, 0.5 * cm, bold=True)
+    text(f"Level {ov.current_level}/5 — {level_name(ov.current_level)}", 11.5, 0.5 * cm, color=teal)
+    overall = round(ov.latest_overall) if ov.latest_overall is not None else "-"
+    nxt = (f"Next: level {ov.next_level} in ~{ov.estimated_days_to_next_level} days"
+           if ov.next_level is not None and ov.estimated_days_to_next_level is not None
+           else "At the top level")
+    text(f"Overall {overall}%   ·   Streak {ov.streak_days} days   ·   {ov.assessments_count} "
+         f"assessments   ·   {nxt}", 10, 0.7 * cm, color=grey)
+
+    heading("Skill breakdown")
+    if latest:
+        for d in DIMENSIONS:
+            v = getattr(latest, d)
+            if v is not None:
+                bar(d, float(v))
+    else:
+        text("No assessments yet.", color=grey)
+
+    heading("What you're doing well")
+    strengths = ", ".join(s.capitalize() for s in fb.strengths) or "Keep practicing to build these."
+    text("· " + strengths)
+    heading("Focus areas")
+    text("· " + (", ".join(w.capitalize() for w in fb.weaknesses) or "All skills near target."))
+    for fa in plan.focus_areas:
+        act = fa.activities[0] if fa.activities else ""
+        text(f"  – {fa.skill.capitalize()} ({fa.score:.0f}%): {act}", 9.5, 0.48 * cm, color=grey)
+
+    if fb.corrections:
+        heading("Corrections from your latest session")
+        for corr in fb.corrections[:5]:
+            t, fix = corr.get("text", ""), corr.get("correction", "")
+            text(f"  ✗ {t}   →   ✓ {fix}", 9.5, 0.48 * cm)
+    if fb.vocabulary_suggestions:
+        heading("Vocabulary to try")
+        text("· " + ", ".join(fb.vocabulary_suggestions[:8]), 10, color=grey)
+    if fb.pronunciation_tip:
+        heading("Pronunciation tip")
+        text("· " + fb.pronunciation_tip, 10, color=grey)
+
+    heading("Your plan")
+    text(plan.summary, 10, 0.5 * cm)
+    horizon = plan.horizon.replace("_", " ")
+    text(f"Difficulty {plan.difficulty} · horizon {horizon}", 9.5, color=grey)
+
+    c.setFillColorRGB(*grey)
+    c.setFont("Helvetica-Oblique", 8.5)
+    ver = latest.scoring_model_version if latest else "v1"
+    c.drawString(M, 1.2 * cm, f"Generated by AI English Coach · scoring {ver}")
     c.showPage()
     c.save()
     return buf.getvalue()

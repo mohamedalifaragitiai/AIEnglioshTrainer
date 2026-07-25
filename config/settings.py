@@ -116,8 +116,10 @@ class Settings(BaseSettings):
     vad_backend: str = "energy"
     vad_frame_ms: int = 20
     vad_energy_threshold: float = 0.02       # normalized RMS (int16 / 32768)
-    vad_silence_hangover_ms: int = 500       # trailing silence that ends a turn
-    vad_min_speech_ms: int = 200             # ignore blips shorter than this
+    # Trailing silence that ends a turn. Long enough that a natural mid-sentence
+    # pause doesn't make the coach jump in before the learner finishes.
+    vad_silence_hangover_ms: int = 900
+    vad_min_speech_ms: int = 300             # ignore blips shorter than this
 
     # --- Paths -------------------------------------------------------------
     data_dir: Path = _REPO_ROOT / "data"

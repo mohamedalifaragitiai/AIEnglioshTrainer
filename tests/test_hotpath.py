@@ -31,7 +31,7 @@ class FakeDialogue:
     async def reply(self, transcript, history):
         return self.reply_text
 
-    async def reply_stream(self, transcript, history):
+    async def reply_stream(self, transcript, history, **_):
         yield self.reply_text
 
 

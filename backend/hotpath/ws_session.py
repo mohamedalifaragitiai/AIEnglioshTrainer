@@ -21,6 +21,7 @@ from backend.core.logging import bind_correlation_id, get_logger
 from backend.core.resource_guard import ResourceGuard
 from backend.core.util import new_id
 from backend.hotpath.base import HotEventKind
+from backend.hotpath.dialogue import coach_system_prompt
 from backend.hotpath.pipeline import HotPathPipeline, TurnContext
 from backend.hotpath.vad import Segmenter, build_vad
 from backend.persistence.db import Database
@@ -52,6 +53,10 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
 
     user_id = ws.query_params.get("user_id", "")
     mode = ws.query_params.get("mode", "free")
+    topic = ws.query_params.get("topic") or None
+    # Push-to-talk: the client (a Speak button) decides when the turn ends, so we do
+    # NOT auto-segment on silence — the whole recording is one turn, flushed on 'end'.
+    ptt = ws.query_params.get("ptt", "").lower() in ("1", "true", "yes")
     correlation_id = new_id("ws")
     bind_correlation_id(correlation_id)
 
@@ -82,7 +87,16 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
         silence_hangover_ms=settings.vad_silence_hangover_ms,
         min_speech_ms=settings.vad_min_speech_ms,
     )
-    ctx = TurnContext(session_id=session.session_id, user_id=user_id, history=[])
+    # Build a coach persona pitched at the learner's level + the chosen topic, so
+    # generated questions match their level and the topic they want to practice.
+    user = users.get(user_id)
+    level = user.current_level if user else 0
+    ctx = TurnContext(
+        session_id=session.session_id,
+        user_id=user_id,
+        history=[],
+        system_prompt=coach_system_prompt(level, topic),
+    )
     frame_bytes = int(settings.hotpath_sample_rate * settings.vad_frame_ms / 1000) * 2
     pending = bytearray()
 
@@ -97,6 +111,8 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
 
             if (data := msg.get("bytes")) is not None:
                 pending.extend(data)
+                if ptt:
+                    continue  # accumulate the whole take; the button ends the turn
                 while len(pending) >= frame_bytes:
                     frame = bytes(pending[:frame_bytes])
                     del pending[:frame_bytes]
@@ -110,9 +126,18 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                 except json.JSONDecodeError:
                     continue
                 if control.get("type") == "end":
-                    utt = segmenter.flush()
-                    if utt:
-                        await _run_turn(ws, pipeline, ctx, utt)
+                    if ptt:
+                        # Whole recording is the utterance; require a minimum length.
+                        min_bytes = (
+                            settings.hotpath_sample_rate * 2 * settings.vad_min_speech_ms // 1000
+                        )
+                        if len(pending) >= min_bytes:
+                            await _run_turn(ws, pipeline, ctx, bytes(pending))
+                        pending.clear()
+                    else:
+                        utt = segmenter.flush()
+                        if utt:
+                            await _run_turn(ws, pipeline, ctx, utt)
                 elif control.get("type") == "bye":
                     break
     except WebSocketDisconnect:
