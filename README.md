@@ -155,7 +155,29 @@ The system is runnable after each phase.
   radar, overall trend, top gaps, adaptive plan, assessments table, report
   downloads, and a live Practice page. REST + WebSocket, CORS-enabled. Coexists
   with the zero-dependency `frontend/index.html` served by FastAPI.
-- **Phase 7** — Hardening: monitoring dashboards, soak tests, CI, docs.
+- **Phase 7 — Hardening** ✅: soak test under the 96% ceiling, GitHub Actions CI
+  (uv + ruff + pytest + soak, and dashboard typecheck/build — no Docker), Grafana
+  dashboard + Prometheus config in `assets/`, and `ROADMAP.md`.
+
+See `ROADMAP.md` for what's done and candidate next steps.
+
+## Testing, CI & monitoring
+
+```bash
+uv run pytest                              # full backend suite
+uv run ruff check .                        # lint
+uv run python scripts/loadtest_guard.py    # synthetic ceiling proof
+uv run python scripts/soak_test.py         # sustained concurrent load under pressure
+uv run python scripts/profile_hotpath.py   # <300ms first-audio budget
+cd frontend-next && npm run typecheck && npm run build
+```
+
+- **CI:** `.github/workflows/ci.yml` runs the backend (uv `--frozen` → ruff → pytest
+  → soak) and the dashboard (npm ci → typecheck → build) on push/PR. No Docker.
+- **Monitoring:** `/metrics` (Prometheus) is always on. `assets/prometheus.yml` is a
+  ready scrape config; import `assets/grafana-dashboard.json` for panels covering the
+  96% ceiling, degradation level, hot-path first-audio p95, cold-path queue/deferrals,
+  guard sample cost, and models loaded.
 
 ## Golden rules
 

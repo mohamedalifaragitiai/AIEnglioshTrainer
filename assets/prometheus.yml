@@ -1,0 +1,14 @@
+# Minimal Prometheus scrape config for the AI English Coach.
+# The app's /metrics endpoint is mandatory; Prometheus/Grafana are optional.
+#
+#   prometheus --config.file=assets/prometheus.yml
+#
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: english-coach
+    static_configs:
+      - targets: ["127.0.0.1:8000"]
+    metrics_path: /metrics
