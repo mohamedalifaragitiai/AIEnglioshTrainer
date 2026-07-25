@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
 
+from backend.api import models as models_router
 from backend.api import progress as progress_router
 from backend.api import sessions as sessions_router
 from backend.api import users as users_router
@@ -24,6 +25,7 @@ from backend.core.metrics import CONTENT_TYPE, render_metrics
 from backend.core.resource_guard import PsutilNvmlSampler, ResourceGuard
 from backend.persistence.db import Database
 from backend.persistence.migrations import migrate
+from backend.serving.adapters import build_default_registry
 from config.settings import get_settings
 
 settings = get_settings()
@@ -51,18 +53,33 @@ async def lifespan(app: FastAPI):
         migrations_applied=applied,
     )
 
+    # Model serving: build the registry (vLLM hot/cold + STT + GOP + TTS specs).
+    # Loading is gated by COACH_LOAD_MODELS. When on, load_all verifies the min
+    # resident set fits under the 96% VRAM ceiling and refuses to start otherwise.
+    registry, llm_client = build_default_registry(guard, settings)
+    if settings.load_models:
+        await registry.load_all()  # raises StartupBudgetError if the min set won't fit
+    else:
+        log.info("models_disabled", detail="COACH_LOAD_MODELS is false; specs registered only")
+    log.info("model_budget", **registry.budget())
+
     app.state.guard = guard
     app.state.sampler = sampler
     app.state.db = db
+    app.state.model_registry = registry
+    app.state.llm_client = llm_client
     log.info(
         "app_started",
         host=settings.app_host,
         port=settings.app_port,
         ceiling=settings.resource_ceiling,
+        models_loaded=settings.load_models,
     )
     try:
         yield
     finally:
+        await registry.unload_all()
+        await llm_client.aclose()
         await guard.stop()
         if hasattr(sampler, "shutdown"):
             sampler.shutdown()
@@ -106,3 +123,4 @@ async def guard_state() -> dict:
 app.include_router(users_router.router)
 app.include_router(sessions_router.router)
 app.include_router(progress_router.router)
+app.include_router(models_router.router)

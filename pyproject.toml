@@ -12,14 +12,22 @@ dependencies = [
     "structlog>=24.4",
     "psutil>=6.1",
     "nvidia-ml-py>=12.560",
+    "httpx>=0.28",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "httpx>=0.28",
     "ruff>=0.8",
+]
+# Opt-in heavy ML runtime — NOT installed by default (keeps `uv sync` light and
+# the app bootable without weights). Enable with: uv sync --group models
+# torch/transformers/kokoro are host/CUDA-specific and installed per the README
+# (WSL2 + CUDA index), not pinned here.
+models = [
+    "huggingface-hub>=0.26",
+    "faster-whisper>=1.0",
 ]
 
 [tool.pytest.ini_options]
