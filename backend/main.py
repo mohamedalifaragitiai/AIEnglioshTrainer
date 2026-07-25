@@ -15,17 +15,25 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
+from starlette.websockets import WebSocket
 
 from backend.api import models as models_router
 from backend.api import progress as progress_router
 from backend.api import sessions as sessions_router
 from backend.api import users as users_router
+from backend.core.event_bus import EventBus
 from backend.core.logging import configure_logging, get_logger
 from backend.core.metrics import CONTENT_TYPE, render_metrics
 from backend.core.resource_guard import PsutilNvmlSampler, ResourceGuard
+from backend.domain.events import UtteranceFinalized
+from backend.hotpath.dialogue import DialogueStage
+from backend.hotpath.stt import WhisperSTTStage
+from backend.hotpath.tts import KokoroTTSStage
+from backend.hotpath.ws_session import HotPathStages, handle_ws_session
 from backend.persistence.db import Database
 from backend.persistence.migrations import migrate
 from backend.serving.adapters import build_default_registry
+from backend.serving.base import ModelKind
 from config.settings import get_settings
 
 settings = get_settings()
@@ -63,11 +71,29 @@ async def lifespan(app: FastAPI):
         log.info("models_disabled", detail="COACH_LOAD_MODELS is false; specs registered only")
     log.info("model_budget", **registry.budget())
 
+    # Hot path: event bus + stages (backed by the registry's models). Stages work
+    # even when models are disabled — a turn then reports an actionable error.
+    bus = EventBus()
+    bus.subscribe(UtteranceFinalized, _on_utterance_finalized)
+    stt_model = next(m for m in registry.models if m.kind == ModelKind.STT)
+    tts_model = next(m for m in registry.models if m.kind == ModelKind.TTS)
+    stages = HotPathStages(
+        stt=WhisperSTTStage(stt_model),  # type: ignore[arg-type]
+        dialogue=DialogueStage(
+            llm_client,
+            system_prompt=settings.hotpath_system_prompt,
+            max_tokens=settings.hotpath_reply_max_tokens,
+        ),
+        tts=KokoroTTSStage(tts_model),  # type: ignore[arg-type]
+    )
+
     app.state.guard = guard
     app.state.sampler = sampler
     app.state.db = db
     app.state.model_registry = registry
     app.state.llm_client = llm_client
+    app.state.event_bus = bus
+    app.state.hotpath_stages = stages
     log.info(
         "app_started",
         host=settings.app_host,
@@ -78,12 +104,24 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await bus.drain()
         await registry.unload_all()
         await llm_client.aclose()
         await guard.stop()
         if hasattr(sampler, "shutdown"):
             sampler.shutdown()
         log.info("app_stopped")
+
+
+async def _on_utterance_finalized(ev: UtteranceFinalized) -> None:
+    """Cold-path placeholder until Phase 4 wires real evaluation/scoring."""
+    log.info(
+        "utterance_finalized",
+        utterance_id=ev.utterance_id,
+        session_id=ev.session_id,
+        user_id=ev.user_id,
+        transcript_len=len(ev.transcript),
+    )
 
 
 app = FastAPI(
@@ -117,6 +155,12 @@ async def guard_state() -> dict:
         "soft": guard.soft,
         "usage": {k: (round(v, 4) if v is not None else None) for k, v in snap.ratios.items()},
     }
+
+
+@app.websocket("/ws/session")
+async def ws_session_endpoint(websocket: WebSocket) -> None:
+    """Live speaking loop: stream PCM16 audio in, get transcript/reply/audio out."""
+    await handle_ws_session(websocket, settings)
 
 
 # Per-user profiles, sessions/assessments, and progress queries.

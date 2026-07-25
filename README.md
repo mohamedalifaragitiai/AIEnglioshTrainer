@@ -116,7 +116,11 @@ The system is runnable after each phase.
   Whisper-turbo / wav2vec2-GOP / Kokoro adapters (opt-in `models` dep group);
   `/models` status + budget API; `setup_models.py` (check-first, logged downloads)
   and `benchmark_models.py`. Weights are **not** bundled — see *Enabling models*.
-- **Phase 3** — Hot path over WebSocket (<300ms first audio).
+- **Phase 3 — Hot path** ✅: in-process asyncio event bus; energy VAD + turn
+  segmenter (offline, dependency-free; Silero optional); STT/dialogue/TTS stages;
+  `HotPathPipeline` (one guard-gated turn, streamed, emits `UtteranceFinalized`);
+  `/ws/session` WebSocket loop (PCM16 in → transcript/reply/audio out); and
+  `scripts/profile_hotpath.py` proving the <300ms first-audio budget.
 - **Phase 4** — Cold-path evaluators + real GOP pronunciation + versioned scoring.
 - **Phase 5** — Gap analysis, adaptive plans, reports (PDF/Excel/CSV/JSON).
 - **Phase 6** — Next.js dashboard.
