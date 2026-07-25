@@ -1,0 +1,119 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus data source scraping the coach /metrics endpoint.",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "title": "AI English Coach",
+  "tags": ["english-coach", "resource-guard"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Resource usage ratio (96% ceiling)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        { "expr": "resource_usage_ratio", "legendFormat": "{{resource}}", "refId": "A" },
+        { "expr": "vector(0.96)", "legendFormat": "ceiling", "refId": "B" },
+        { "expr": "vector(0.88)", "legendFormat": "soft", "refId": "C" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Degradation level (0..4)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 4 }, "overrides": [] },
+      "targets": [{ "expr": "degradation_level", "legendFormat": "level", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "Hot-path first audio p95 (budget 0.3s)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(hotpath_first_audio_seconds_bucket[5m])) by (le))",
+          "legendFormat": "first audio p95",
+          "refId": "A"
+        },
+        { "expr": "vector(0.3)", "legendFormat": "budget", "refId": "B" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Hot-path stage latency p95",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(hotpath_stage_seconds_bucket[5m])) by (le, stage))",
+          "legendFormat": "{{stage}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Cold-path queue depth",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [{ "expr": "coldpath_queue_depth", "legendFormat": "queued", "refId": "A" }]
+    },
+    {
+      "id": 6,
+      "title": "Cold-path jobs / deferrals / rejections",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "sum by (outcome) (rate(coldpath_jobs_total[5m]))", "legendFormat": "cold {{outcome}}", "refId": "A" },
+        { "expr": "rate(jobs_deferred_total[5m])", "legendFormat": "guard deferred", "refId": "B" },
+        { "expr": "rate(sessions_rejected_total[5m])", "legendFormat": "sessions rejected", "refId": "C" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Guard sample cost p99 (must be << 1s)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(guard_sample_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "sample p99",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Models loaded",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [{ "expr": "model_loaded", "legendFormat": "{{model}}", "refId": "A" }]
+    }
+  ]
+}
