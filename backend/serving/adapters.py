@@ -103,10 +103,14 @@ class Wav2Vec2GOPModel(ManagedModel):
 
     async def _load(self) -> None:
         import torch
-        from transformers import AutoModelForCTC, AutoProcessor
+        from transformers import AutoModelForCTC, Wav2Vec2FeatureExtractor
 
         s = self._settings
-        self.processor = AutoProcessor.from_pretrained(
+        # GOP uses only the acoustic posteriors (max-prob per frame), never phoneme
+        # decoding — so load just the feature extractor, not the full processor. The
+        # espeak phoneme *tokenizer* would otherwise require the espeak-ng system
+        # binary at load time; the feature extractor needs no system deps.
+        self.processor = Wav2Vec2FeatureExtractor.from_pretrained(
             s.gop_model, cache_dir=str(s.models_dir), local_files_only=True
         )
         model = AutoModelForCTC.from_pretrained(
