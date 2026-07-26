@@ -15,6 +15,14 @@ Two non-negotiable constraints drive every design choice:
 
 ## Architecture (two paths, one resource broker)
 
+![AI English Coach solution design — the hot voice path, the deferrable cold scoring
+path, the profile/learning loop, and the runtime under a hard 96% resource
+ceiling](design/solution_design.png)
+
+*One-page overview of the whole system. The interactive original lives at
+[`design/solution_design.html`](design/solution_design.html) — open it in a browser
+for crisp vector text (it also prints cleanly to PDF).*
+
 - **Hot path** (synchronous, <300ms to first audio): mic → Silero VAD → Whisper
   `large-v3-turbo` → Qwen3-8B (vLLM) → Kokoro-82M TTS → speaker.
 - **Cold path** (asynchronous, deferrable): grammar/vocab/fluency (Qwen3-14B) +
@@ -201,5 +209,6 @@ english-coach/
 │   │   └── logging.py            # structlog + correlation ids
 │   ├── domain/ hotpath/ coldpath/ persistence/ api/   # (later phases)
 ├── scripts/loadtest_guard.py     # synthetic ceiling proof (Phase 0 gate)
+├── design/solution_design.html   # the one-page solution design (+ rendered .png)
 └── tests/                        # pytest: guard ladder/hysteresis, API
 ```
