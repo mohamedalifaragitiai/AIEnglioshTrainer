@@ -5,6 +5,10 @@ each finalized utterance runs one hot-path turn, streaming the reply's transcrip
 text, and TTS audio chunks back. Control messages: ``{"type":"end"}`` force-ends the
 current turn, ``{"type":"bye"}`` closes the session.
 
+Every ``end`` gets exactly one closing message — ``turn_end`` when the turn ran, or
+``turn_skipped`` when the take was too short to be speech. The client re-enables its
+mic on that message, so silence would strand it.
+
 Stages are pulled from app state (real models in production, fakes in tests) so the
 loop itself is model-agnostic and unit-testable.
 """
@@ -131,13 +135,28 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                         min_bytes = (
                             settings.hotpath_sample_rate * 2 * settings.vad_min_speech_ms // 1000
                         )
-                        if len(pending) >= min_bytes:
-                            await _run_turn(ws, pipeline, ctx, bytes(pending))
+                        utt = bytes(pending) if len(pending) >= min_bytes else None
                         pending.clear()
                     else:
                         utt = segmenter.flush()
-                        if utt:
-                            await _run_turn(ws, pipeline, ctx, utt)
+                    if utt:
+                        await _run_turn(ws, pipeline, ctx, utt)
+                    else:
+                        # Too short to be speech. ALWAYS answer an 'end' — the client
+                        # blocks its mic until the turn closes, so staying silent here
+                        # would strand it (and would hang any test draining the turn).
+                        await ws.send_text(
+                            json.dumps(
+                                {
+                                    "type": "turn_skipped",
+                                    "detail": (
+                                        "that was too short to score — hold the button and "
+                                        f"speak for at least "
+                                        f"{settings.vad_min_speech_ms / 1000:.1f}s"
+                                    ),
+                                }
+                            )
+                        )
                 elif control.get("type") == "bye":
                     break
     except WebSocketDisconnect:

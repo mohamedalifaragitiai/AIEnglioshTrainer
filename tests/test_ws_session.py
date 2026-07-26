@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from array import array
 from collections.abc import AsyncIterator
 
@@ -11,13 +12,44 @@ from fastapi.testclient import TestClient
 from backend.core.util import new_id
 from backend.hotpath.ws_session import HotPathStages
 from backend.main import app
+from config.settings import get_settings
 
-SR = 16000
-FRAME_SAMPLES = SR * 20 // 1000  # 320
+_S = get_settings()
+SR = _S.hotpath_sample_rate
+FRAME_SAMPLES = SR * _S.vad_frame_ms // 1000
+# Derive the take length from the VAD threshold instead of hardcoding a frame count:
+# a hardcoded 12 silently became too short when vad_min_speech_ms moved to 300, and
+# the segmenter then finalized nothing — so the server sent nothing and the test hung.
+SPEECH_FRAMES = _S.vad_min_speech_ms // _S.vad_frame_ms + 3
 
 
 def _loud() -> bytes:
     return array("h", [9000] * FRAME_SAMPLES).tobytes()
+
+
+def _receive_within(ws, timeout: float = 15.0) -> dict:
+    """``ws.receive()`` with a deadline.
+
+    TestClient's receive blocks forever, so any server that stops talking mid-turn
+    would hang the whole suite instead of failing one test. Fail loudly instead.
+    """
+    box: list = []
+    t = threading.Thread(target=lambda: box.append(ws.receive()), daemon=True)
+    t.start()
+    t.join(timeout)
+    if not box:
+        raise AssertionError(
+            f"no server message within {timeout}s — the turn never ran and the server "
+            f"never closed it out (every 'end' must answer with turn_end or turn_skipped)"
+        )
+    return box[0]
+
+
+def _speak_a_turn(ws) -> None:
+    """Send a take long enough to clear the VAD threshold, then force end-of-turn."""
+    for _ in range(SPEECH_FRAMES):
+        ws.send_bytes(_loud())
+    ws.send_text(json.dumps({"type": "end"}))
 
 
 class FakeSTT:
@@ -46,14 +78,14 @@ class FakeTTS:
 
 
 def _drain_turn(ws):
-    """Collect server messages until turn_end/error. Returns (json_msgs, audio_count)."""
+    """Collect server messages until the turn closes. Returns (json_msgs, audio_count)."""
     msgs, audio = [], 0
     while True:
-        m = ws.receive()
+        m = _receive_within(ws)
         if m.get("text") is not None:
             j = json.loads(m["text"])
             msgs.append(j)
-            if j["type"] in ("turn_end", "error"):
+            if j["type"] in ("turn_end", "turn_skipped", "error"):
                 return msgs, audio
         elif m.get("bytes") is not None:
             audio += 1
@@ -70,11 +102,7 @@ def test_ws_turn_streams_transcript_reply_audio_timings():
             hello = ws.receive_json()
             assert hello["type"] == "session"
 
-            # 12 speech frames (> min_speech) then force end-of-turn.
-            for _ in range(12):
-                ws.send_bytes(_loud())
-            ws.send_text(json.dumps({"type": "end"}))
-
+            _speak_a_turn(ws)
             msgs, audio = _drain_turn(ws)
             types = [m["type"] for m in msgs]
             assert "final" in types and "reply" in types and "turn_end" in types
@@ -101,9 +129,7 @@ def test_ws_turn_flows_to_cold_path_assessment():
 
         with client.websocket_connect(f"/ws/session?user_id={uid}") as ws:
             ws.receive_json()  # session
-            for _ in range(12):
-                ws.send_bytes(_loud())
-            ws.send_text(json.dumps({"type": "end"}))
+            _speak_a_turn(ws)
             _drain_turn(ws)
             ws.send_text(json.dumps({"type": "bye"}))
 
@@ -122,6 +148,53 @@ def test_ws_turn_flows_to_cold_path_assessment():
         assert a["overall"] is not None
 
 
+def test_ws_short_take_is_closed_out_not_ignored():
+    """A take below vad_min_speech_ms finalizes no utterance. The server must still
+    close the turn — the client keeps its mic disabled until it hears back, so silence
+    here strands the UI (and hangs anything draining the turn)."""
+    with TestClient(app) as client:
+        uid = "ws" + new_id()[:8]
+        client.post("/users", json={"user_id": uid, "display_name": "WS"})
+        client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
+
+        with client.websocket_connect(f"/ws/session?user_id={uid}") as ws:
+            ws.receive_json()  # session
+            for _ in range(max(1, SPEECH_FRAMES // 4)):  # deliberately too short
+                ws.send_bytes(_loud())
+            ws.send_text(json.dumps({"type": "end"}))
+
+            msgs, audio = _drain_turn(ws)
+            assert [m["type"] for m in msgs] == ["turn_skipped"]
+            assert audio == 0
+            assert msgs[0]["detail"]
+            ws.send_text(json.dumps({"type": "bye"}))
+
+
+def test_ws_short_take_is_closed_out_in_ptt_mode():
+    """Same guarantee on the push-to-talk path the UI actually uses (ptt=1)."""
+    with TestClient(app) as client:
+        uid = "ws" + new_id()[:8]
+        client.post("/users", json={"user_id": uid, "display_name": "WS"})
+        client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
+
+        with client.websocket_connect(f"/ws/session?user_id={uid}&ptt=1") as ws:
+            ws.receive_json()  # session
+            ws.send_bytes(_loud())  # one frame — far below the threshold
+            ws.send_text(json.dumps({"type": "end"}))
+
+            msgs, _ = _drain_turn(ws)
+            assert [m["type"] for m in msgs] == ["turn_skipped"]
+
+            # And a long enough take on the same session still runs a full turn.
+            for _ in range(SPEECH_FRAMES):
+                ws.send_bytes(_loud())
+            ws.send_text(json.dumps({"type": "end"}))
+            msgs, audio = _drain_turn(ws)
+            types = [m["type"] for m in msgs]
+            assert "final" in types and "turn_end" in types and audio == 3
+            ws.send_text(json.dumps({"type": "bye"}))
+
+
 def test_ws_rejects_unknown_user():
     with TestClient(app) as client:
         client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
@@ -138,9 +211,7 @@ def test_ws_persists_session_and_utterances():
 
         with client.websocket_connect(f"/ws/session?user_id={uid}") as ws:
             ws.receive_json()  # session
-            for _ in range(12):
-                ws.send_bytes(_loud())
-            ws.send_text(json.dumps({"type": "end"}))
+            _speak_a_turn(ws)
             _drain_turn(ws)
             ws.send_text(json.dumps({"type": "bye"}))
 

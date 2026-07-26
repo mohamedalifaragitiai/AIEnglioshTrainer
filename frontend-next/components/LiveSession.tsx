@@ -105,6 +105,11 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
       );
       coachOpen.current = false;
       setSt("idle");
+    } else if (m.type === "turn_skipped") {
+      // The take was too short to score. Release the mic — nothing was said.
+      setTimings(m.detail || "too short");
+      coachOpen.current = false;
+      setSt("idle");
     } else if (m.type === "error") {
       setMessages((p) => [...p, { who: "coach", text: "⚠ " + (m.detail || "error") }]);
       coachOpen.current = false;
