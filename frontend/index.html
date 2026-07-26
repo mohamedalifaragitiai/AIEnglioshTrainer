@@ -427,6 +427,7 @@ function ctrl(m){
     $('#turnTimings').textContent=`first audio ${Math.round(t.first_audio_ms)}ms · stt ${Math.round(t.stt_ms)} · llm ${Math.round(t.llm_ms)} · tts ${Math.round(t.tts_first_ms)}`;
     // Re-enable the mic only once the coach has finished this turn.
     setState('idle');}
+  else if(m.type==='turn_skipped'){currentCoach=null;$('#turnTimings').textContent=m.detail||'too short';setState('idle');}
   else if(m.type==='error'){addMsg('coach','⚠ '+(m.detail||'error'));currentCoach=null;setState('idle');}
 }
 function to16k(input,rate){const ratio=rate/16000,n=Math.floor(input.length/ratio),out=new Int16Array(n);
