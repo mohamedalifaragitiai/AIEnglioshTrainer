@@ -121,6 +121,10 @@ def test_budget_report_shape(settings):
 def test_default_registry_has_full_split_model_set(settings):
     from backend.serving.adapters import build_default_registry
 
+    # Set both explicitly: the ambient .env may point hot and cold at ONE served
+    # model, which is the collapse-to-a-single-entry case covered below.
+    settings.vllm_hot_model = "Qwen/Qwen3-8B"
+    settings.vllm_cold_model = "Qwen/Qwen3-14B"
     guard = _guard_with_vram(settings, 0.05)
     reg, client = build_default_registry(guard, settings)
     kinds = [m.kind for m in reg.models]
@@ -130,3 +134,30 @@ def test_default_registry_has_full_split_model_set(settings):
     assert reg.min_set_vram_gb() == pytest.approx(
         settings.stt_vram_gb + settings.gop_vram_gb + settings.tts_vram_gb
     )
+
+
+def test_shared_hot_cold_model_is_registered_once(settings):
+    """One served model doing double duty must appear ONCE — otherwise /stats lists
+    the same model twice and models_loaded over-reports."""
+    from backend.serving.adapters import build_default_registry
+
+    settings.vllm_hot_model = settings.vllm_cold_model = "Qwen/Qwen3-8B-AWQ"
+    settings.vllm_vram_fraction = 0.55
+    guard = _guard_with_vram(settings, 0.05)
+    reg, _ = build_default_registry(guard, settings)
+
+    llms = [m for m in reg.models if m.kind == ModelKind.LLM]
+    assert len(llms) == 1
+    assert llms[0].name == "vllm:Qwen/Qwen3-8B-AWQ"
+    assert [m.name for m in reg.models].count(llms[0].name) == 1
+    # The single entry carries the whole reservation, not a 45/55 slice of it.
+    assert llms[0].vram_gb == pytest.approx(round(0.55 * 16.0, 1))
+
+
+def test_register_rejects_duplicate_names(settings):
+    guard = _guard_with_vram(settings, 0.05)
+    reg = ModelRegistry(guard)
+    reg.register(FakeModel("vllm:same", ModelKind.LLM, device="cuda:vllm"))
+    with pytest.raises(ValueError, match="already registered"):
+        reg.register(FakeModel("vllm:same", ModelKind.LLM, device="cuda:vllm"))
+    assert len(reg.models) == 1

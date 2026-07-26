@@ -8,12 +8,20 @@ from backend.main import app
 
 
 def test_models_list_reports_specs():
+    from config.settings import get_settings
+
     with TestClient(app) as client:
         r = client.get("/models")
         assert r.status_code == 200
         models = r.json()
-        # Full split-model set: hot 8B + cold 14B + STT + GOP + TTS.
-        assert len(models) == 5
+        # STT + GOP + TTS, plus one entry per DISTINCT served LLM: hot 8B + cold 14B
+        # normally, but a single model doing double duty collapses to one entry.
+        s = get_settings()
+        expected_llms = 1 if s.vllm_hot_model == s.vllm_cold_model else 2
+        assert len(models) == 3 + expected_llms
+        # Never the same model listed twice — that double-counted models_loaded.
+        names = [m["name"] for m in models]
+        assert len(names) == len(set(names))
         kinds = {m["kind"] for m in models}
         assert {"llm", "stt", "gop", "tts"} <= kinds
         # Loading disabled by default → nothing loaded.

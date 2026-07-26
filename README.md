@@ -50,6 +50,12 @@ cp .env.example .env    # optional: override defaults
 uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
+> Once the host-specific ML runtime is installed (torch / faster-whisper / kokoro —
+> see *Enabling models*), start the app with the venv Python directly instead:
+> `./.venv/Scripts/python.exe -m uvicorn backend.main:app --port 8000`. `uv run`
+> re-syncs the lockfile and would strip those installs. See **`RESUME.md`** for the
+> full bring-everything-back-up sequence.
+
 Then open **http://127.0.0.1:8000/** — the built-in web UI (dashboard + live
 practice). Other endpoints:
 - UI:      http://127.0.0.1:8000/          (dashboard, radar/trend charts, live mic)
@@ -69,9 +75,18 @@ The UI is a single self-contained page (`frontend/index.html`) served by the app
 keeping with the fully-offline rule. It has a **Dashboard** (level/streak/overall/ETA
 tiles, an 8-skill radar, an overall-trend line, and a recent-assessments table) and a
 **Practice** tab (mic → WebSocket `/ws/session` → streamed transcript/reply/TTS
-audio). Live speaking needs models enabled (see *Enabling models*); the dashboard
-works from stored/seeded data alone. A polished Next.js + Tailwind version is the
-planned Phase 6 upgrade.
+audio), plus **Monitor** and **Report** tabs. Live speaking needs models enabled
+(see *Enabling models*); the dashboard works from stored/seeded data alone.
+
+A polished **Next.js 14 + Tailwind + Recharts** dashboard lives in `frontend-next/`
+(Phase 6, shipped) and talks to the same REST + WebSocket API:
+
+```bash
+cd frontend-next && npm install && npm run dev   # → http://localhost:3000
+```
+
+Both front-ends are first-class and can run side by side — the served page needs no
+Node at all, the Next.js app is the richer dashboard.
 
 ## Prove the 96% ceiling (before any model is loaded)
 
@@ -200,15 +215,47 @@ durable profile · hot path never blocks on evaluation · everything observable.
 
 ```
 english-coach/
-├── config/settings.py            # pydantic-settings; RESOURCE_CEILING=0.96
+├── config/settings.py              # pydantic-settings; RESOURCE_CEILING=0.96
 ├── backend/
-│   ├── main.py                   # FastAPI app; lifespan boots the guard
+│   ├── main.py                     # FastAPI app; lifespan boots guard → registry → worker
+│   │                               # also serves /healthz · /metrics · /guard
 │   ├── core/
-│   │   ├── resource_guard.py     # the 96% ceiling + degradation ladder
-│   │   ├── metrics.py            # prometheus collectors
-│   │   └── logging.py            # structlog + correlation ids
-│   ├── domain/ hotpath/ coldpath/ persistence/ api/   # (later phases)
-├── scripts/loadtest_guard.py     # synthetic ceiling proof (Phase 0 gate)
-├── design/solution_design.html   # the one-page solution design (+ rendered .png)
-└── tests/                        # pytest: guard ladder/hysteresis, API
+│   │   ├── resource_guard.py       # the 96% ceiling + degradation ladder
+│   │   ├── event_bus.py            # in-process asyncio bus (hot → cold handoff)
+│   │   ├── metrics.py  logging.py  # prometheus collectors · structlog + correlation ids
+│   │   └── soak.py  util.py
+│   ├── serving/                    # ManagedModel + registry (guard-gated startup budget)
+│   │   ├── base.py  adapters.py    # Whisper / wav2vec2-GOP / Kokoro / vLLM entries
+│   │   └── llm_client.py           # OpenAI-compatible vLLM client (hot + cold)
+│   ├── hotpath/                    # the live turn, <300ms to first audio
+│   │   ├── vad.py  stt.py  dialogue.py  tts.py
+│   │   ├── pipeline.py             # one guard-gated turn; emits UtteranceFinalized
+│   │   └── ws_session.py           # /ws/session — PCM16 in → transcript/reply/audio out
+│   ├── coldpath/                   # deferrable scoring, off the critical path
+│   │   ├── worker.py  factory.py   # event worker; idempotent per utterance
+│   │   ├── evaluators/             # llm_eval · fluency · confidence
+│   │   ├── pronunciation/          # wav2vec2 GOP + proxy fallback
+│   │   ├── scoring.py  scoring_service.py   # versioned, append-only, 8 dimensions
+│   │   └── gap_analysis.py  planner.py  feedback.py  insights.py  reporting.py
+│   ├── persistence/                # SQLite (WAL): db · migrations · repositories · progress
+│   ├── domain/                     # models.py (aggregates) · events.py
+│   └── api/                        # users · sessions · assessments · progress · insights
+│                                   # · models · ops (/stats /topics) · dev
+├── frontend/index.html             # zero-dependency served UI (no Node, no build, no CDN)
+├── frontend-next/                  # Next.js 14 dashboard (TS + Tailwind + Recharts)
+│   ├── app/                        # page · practice · monitor · report · layout
+│   ├── components/                 # LiveSession · SkillRadar · OverallTrend · panels
+│   └── lib/                        # api.ts · types.ts
+├── design/solution_design.html     # the one-page solution design (+ rendered .png)
+├── scripts/                        # loadtest_guard · soak_test · profile_hotpath
+│                                   # · setup_models · benchmark_* · run_vllm.sh
+│                                   # · seed_user · live_turn_check
+├── assets/                         # grafana-dashboard.json · prometheus.yml
+├── tests/                          # pytest: guard, serving, hot/cold path, API, soak
+├── .github/workflows/ci.yml        # ruff + pytest + soak; dashboard typecheck/build
+├── RESUME.md  ROADMAP.md           # restart-after-reboot notes · what's next
+└── .env.example  pyproject.toml  uv.lock
 ```
+
+Untracked at runtime (all gitignored): `data/` (SQLite WAL + generated audio),
+`models/` (STT/GOP/TTS weights, fetched once), `reports/`, `.venv/`.
