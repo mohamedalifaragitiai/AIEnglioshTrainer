@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI English Coach — Solution Design</title>
+<style>
+  body{margin:0;background:#0A2540;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif}
+  .bar{display:flex;justify-content:space-between;align-items:center;padding:13px 26px;background:#0d2c4d;border-bottom:1px solid #1E9BD7;flex-wrap:wrap;gap:6px;color:#fff}
+  .bar b{font-size:13.5px}.bar span{font-size:11.5px;color:#8fc6ec}
+  .stage{padding:24px 24px 20px;display:flex;justify-content:center}
+  svg{width:100%;height:auto;max-width:1580px;background:#ffffff;border-radius:16px;box-shadow:0 24px 70px rgba(10,37,64,.55)}
+  @media print{body{background:#fff}.bar{display:none}svg{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <b>AI English Coach · Solution Design — hear the learner → answer in voice → score the turn offline → grow one durable profile, delivered as ONE FastAPI service on a single workstation</b>
+  <span>Fully offline · no Docker · no cloud · v0.7</span>
+</div>
+<div class="stage">
+<svg viewBox="0 0 1600 1310" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <linearGradient id="az" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1E9BD7"/><stop offset="1" stop-color="#0B6BB3"/></linearGradient>
+    <linearGradient id="azT" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8446c9"/><stop offset="1" stop-color="#5a17a0"/></linearGradient>
+    <linearGradient id="azC" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#25c3bd"/><stop offset="1" stop-color="#0a8293"/></linearGradient>
+    <linearGradient id="azG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fae7a"/><stop offset="1" stop-color="#2e8f5c"/></linearGradient>
+    <linearGradient id="azA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4b64a"/><stop offset="1" stop-color="#d9821a"/></linearGradient>
+    <linearGradient id="azR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ef6a75"/><stop offset="1" stop-color="#cf2c3d"/></linearGradient>
+    <linearGradient id="azHero" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B6BB3"/><stop offset="1" stop-color="#0A2540"/></linearGradient>
+    <linearGradient id="azHeroC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0a8293"/><stop offset="1" stop-color="#0a3a52"/></linearGradient>
+    <linearGradient id="azGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8a815"/><stop offset="1" stop-color="#c07d08"/></linearGradient>
+    <filter id="tsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0A2540" flood-opacity="0.28"/></filter>
+    <marker id="aN" markerWidth="9" markerHeight="9" refX="7" refY="3.6" orient="auto"><path d="M0,0 L7.5,3.6 L0,7.2 Z" fill="#0B6BB3"/></marker>
+    <marker id="aP" markerWidth="9" markerHeight="9" refX="7" refY="3.6" orient="auto"><path d="M0,0 L7.5,3.6 L0,7.2 Z" fill="#7a1fa2"/></marker>
+    <marker id="aC" markerWidth="9" markerHeight="9" refX="7" refY="3.6" orient="auto"><path d="M0,0 L7.5,3.6 L0,7.2 Z" fill="#0a8293"/></marker>
+    <marker id="aG" markerWidth="9" markerHeight="9" refX="7" refY="3.6" orient="auto"><path d="M0,0 L7.5,3.6 L0,7.2 Z" fill="#2e8f5c"/></marker>
+    <marker id="aA" markerWidth="9" markerHeight="9" refX="7" refY="3.6" orient="auto"><path d="M0,0 L7.5,3.6 L0,7.2 Z" fill="#c9760f"/></marker>
+    <marker id="aGold" markerWidth="9" markerHeight="9" refX="7" refY="3.6" orient="auto"><path d="M0,0 L7.5,3.6 L0,7.2 Z" fill="#c07d08"/></marker>
+    <marker id="aGrey" markerWidth="9" markerHeight="9" refX="7" refY="3.6" orient="auto"><path d="M0,0 L7.5,3.6 L0,7.2 Z" fill="#6b7d8d"/></marker>
+
+    <symbol id="g-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></symbol>
+    <symbol id="g-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.6" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.2M8.6 21.4h6.8"/></symbol>
+    <symbol id="g-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M2.5 12h2M7 7.5v9M11 4.5v15M15 8.5v7M19 10.5v3M21.8 12h.2"/></symbol>
+    <symbol id="g-speaker" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.4L12 5.4v13.2L7.4 14.5H4z"/><path d="M15.6 9.2a4 4 0 0 1 0 5.6M18.4 6.6a8 8 0 0 1 0 10.8"/></symbol>
+    <symbol id="g-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h17v11h-9L6 20.5v-4H3.5z"/><path d="M7.5 10h9M7.5 13h6"/></symbol>
+    <symbol id="g-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9 19 19M19 5l-2.1 2.1M7.1 16.9 5 19"/></symbol>
+    <symbol id="g-sql" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.6" rx="7" ry="2.8"/><path d="M5 5.6v12.8c0 1.55 3.1 2.8 7 2.8s7-1.25 7-2.8V5.6"/><path d="M5 12c0 1.55 3.1 2.8 7 2.8s7-1.25 7-2.8"/></symbol>
+    <symbol id="g-store" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="5" rx="1.4"/><rect x="3.5" y="10" width="17" height="5" rx="1.4"/><rect x="3.5" y="16" width="17" height="4" rx="1.4"/></symbol>
+    <symbol id="g-graph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.1"/><circle cx="18" cy="7" r="2.1"/><circle cx="7" cy="18" r="2.1"/><circle cx="17" cy="17" r="2.1"/><path d="M7 7.4 16 6.7M6.6 8 6.9 15.8M8.7 16.9 15 16.9M18 9 17.2 15M7.3 7.7l9 8.2"/></symbol>
+    <symbol id="g-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.6 20.5 7v10L12 21.4 3.5 17V7z"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5V21.4"/></symbol>
+    <symbol id="g-queue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="g-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8l4 4v15H6z"/><path d="M14 2.5V6.5h4M9 12h6M9 16h6"/></symbol>
+    <symbol id="g-sync" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14-4M4 5v4h4M4 13a8 8 0 0 0 14 4M20 19v-4h-4"/></symbol>
+    <symbol id="g-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 21 8 12 13 3 8z"/><path d="M3 12l9 5 9-5M3 16l9 5 9-5"/></symbol>
+    <symbol id="g-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5h17l-6.6 7.6V19l-3.8 1.8v-8.2z"/></symbol>
+    <symbol id="g-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><path d="M8 12.4l2.6 2.6L16.2 9"/></symbol>
+    <symbol id="g-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M7 20h10M4 8h16M4 8l-2.4 5a3 3 0 0 0 4.8 0zM20 8l-2.4 5a3 3 0 0 0 4.8 0z"/></symbol>
+    <symbol id="g-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2l2.6 5.3 5.8.9-4.2 4.1 1 5.8L12 16.6 6.9 19.3l1-5.8L3.6 9.4l5.8-.9z"/></symbol>
+    <symbol id="g-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 12S6 5.5 12 5.5 21.8 12 21.8 12 18 18.5 12 18.5 2.2 12 2.2 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+    <symbol id="g-funnel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol>
+    <symbol id="g-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 20 5.5v6c0 5-3.5 8.2-8 9.9C7.5 19.7 4 16.5 4 11.5v-6z"/><path d="M8.6 12.2l2.3 2.3 4.4-4.6"/></symbol>
+    <symbol id="g-gauge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 18a9.5 9.5 0 1 1 17.2 0"/><path d="M12 18l4.6-6"/><circle cx="12" cy="18" r="1.4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="g-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.8"/><path d="M12 6.6V12l3.6 2.2"/></symbol>
+    <symbol id="g-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="g-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 20.2h17"/><path d="M6.5 20.2V12M11 20.2V5.6M15.5 20.2v-5.4M20 20.2V9"/></symbol>
+    <symbol id="g-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h6a3 3 0 0 1 2.5 1.4A3 3 0 0 1 14.5 4.5h6v14h-6a3 3 0 0 0-2.5 1.4 3 3 0 0 0-2.5-1.4h-6z"/><path d="M12 5.9v14"/></symbol>
+    <symbol id="g-win" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6.2 11 5v6.4H3.5zM12.6 4.8 20.5 3.6v7.8h-7.9zM3.5 12.6H11V19l-7.5-1.2zM12.6 12.6h7.9v7.8l-7.9-1.2z"/></symbol>
+    <symbol id="g-chip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/><path d="M9.5 2.8v3.7M14.5 2.8v3.7M9.5 17.5v3.7M14.5 17.5v3.7M2.8 9.5h3.7M2.8 14.5h3.7M17.5 9.5h3.7M17.5 14.5h3.7"/></symbol>
+  </defs>
+
+  <!-- TITLE -->
+  <text x="48" y="46" font-size="21" font-weight="800" fill="#0a3a66">AI English Coach · Solution Design — from a spoken sentence to a measured, improving learner profile</text>
+  <text x="48" y="68" font-size="12.2" fill="#5b7186">Answer the learner <tspan font-weight="700" fill="#0a6bc2">in voice within 300&#8239;ms</tspan>, score the same turn <tspan font-weight="700" fill="#0a8293">off the critical path</tspan>, fold every score into <tspan font-weight="700" fill="#6a17a0">one durable profile</tspan>, and pitch the next question at the new level — all on ONE workstation, <tspan font-weight="700" fill="#c07d08">fully offline</tspan>, under a hard 96% resource ceiling.</text>
+  <rect x="48" y="78" width="640" height="3" rx="2" fill="#0a6bc2"/>
+
+  <!-- ================= BAND 1 : HOT PATH ================= -->
+  <rect x="40" y="98" width="1520" height="272" rx="14" fill="#f6fbff" stroke="#7fb0dd"/>
+  <text x="60" y="124" font-size="13" font-weight="800" fill="#0a3a66">&#9312; HOT PATH — the live voice turn: mic &#8594; VAD &#8594; STT &#8594; LLM &#8594; TTS &#8594; speaker, one guard-gated turn, streamed</text>
+  <text x="60" y="142" font-size="9.4" fill="#0a6bc2"><tspan font-weight="700">Nothing on this path waits for scoring.</tspan> The turn ends the moment the coach starts speaking; evaluation happens afterwards, on the cold path, and may be deferred entirely.</text>
+
+  <!-- learner -->
+  <rect x="60" y="158" width="196" height="92" rx="12" fill="#eef7ff" stroke="#7fb0dd"/>
+  <g filter="url(#tsh)"><rect x="74" y="170" width="32" height="32" rx="8" fill="url(#az)"/></g><use href="#g-mic" x="82" y="178" width="16" height="16" style="color:#fff"/>
+  <text x="116" y="182" font-size="11" font-weight="700" fill="#0a3a66">Learner &#183; browser mic</text>
+  <text x="116" y="197" font-size="8.7" fill="#5b7186">push-to-talk, no hot mic</text>
+  <text x="74" y="218" font-size="8.7" fill="#5b7186">PCM16 mono @ 16&#8239;kHz, streamed</text>
+  <text x="74" y="231" font-size="8.7" fill="#5b7186">over <tspan font-family="Consolas,monospace">WebSocket /ws/session</tspan></text>
+  <text x="74" y="243" font-size="8.4" fill="#8aa0b3">level 0&#8211;5 + topic chosen up front</text>
+
+  <!-- vad -->
+  <g filter="url(#tsh)"><rect x="284" y="158" width="168" height="92" rx="12" fill="#ffffff" stroke="#7fb0dd"/></g>
+  <use href="#g-wave" x="296" y="168" width="20" height="20" style="color:#0a6bc2"/>
+  <text x="324" y="178" font-size="10.6" font-weight="700" fill="#0a3a66">1 &#183; VAD + segmenter</text>
+  <text x="296" y="199" font-size="8.5" fill="#5b7186">energy VAD &#8212; offline,</text>
+  <text x="296" y="212" font-size="8.5" fill="#5b7186">dependency-free default</text>
+  <text x="296" y="225" font-size="8.5" fill="#5b7186">900&#8239;ms silence ends a turn</text>
+  <text x="296" y="240" font-size="8.3" fill="#8aa0b3">Silero = optional upgrade</text>
+
+  <!-- stt -->
+  <g filter="url(#tsh)"><rect x="480" y="158" width="168" height="92" rx="12" fill="#ffffff" stroke="#7fb0dd"/></g>
+  <use href="#g-scale" x="492" y="168" width="20" height="20" style="color:#0a6bc2"/>
+  <text x="520" y="178" font-size="10.6" font-weight="700" fill="#0a3a66">2 &#183; STT</text>
+  <text x="492" y="199" font-size="8.5" fill="#5b7186">Whisper <tspan font-family="Consolas,monospace">large-v3-turbo</tspan></text>
+  <text x="492" y="212" font-size="8.5" fill="#5b7186">faster-whisper CT2, fp16</text>
+  <text x="492" y="225" font-size="8.5" fill="#5b7186">resident on GPU ~1.9&#8239;GB</text>
+  <text x="492" y="240" font-size="8.3" fill="#8aa0b3">&#8594; transcript + confidence</text>
+
+  <!-- dialogue hero -->
+  <g filter="url(#tsh)"><rect x="676" y="152" width="220" height="104" rx="14" fill="url(#azHero)"/></g>
+  <use href="#g-chat" x="692" y="164" width="20" height="20" style="color:#bfe3ff"/>
+  <text x="722" y="178" font-size="11.8" font-weight="800" fill="#ffffff">3 &#183; Dialogue &#8212; Qwen3-8B</text>
+  <line x1="692" y1="188" x2="880" y2="188" stroke="#4f9bd6" stroke-width="1"/>
+  <text x="692" y="204" font-size="8.9" fill="#dbeeff">AWQ, served by vLLM over an</text>
+  <text x="692" y="217" font-size="8.9" fill="#dbeeff">OpenAI-compatible HTTP API</text>
+  <text x="692" y="232" font-size="8.9" fill="#dbeeff"><tspan font-weight="800" fill="#ffe6a8">level + topic aware</tspan> system prompt</text>
+  <text x="692" y="247" font-size="8.4" fill="#9fc9ee">streamed and drained sentence by sentence</text>
+
+  <!-- tts -->
+  <g filter="url(#tsh)"><rect x="924" y="158" width="168" height="92" rx="12" fill="#f2fbf6" stroke="#7cc79b"/></g>
+  <use href="#g-speaker" x="936" y="168" width="20" height="20" style="color:#2e8f5c"/>
+  <text x="964" y="178" font-size="10.6" font-weight="700" fill="#1c6b41">4 &#183; TTS &#8212; Kokoro-82M</text>
+  <text x="936" y="199" font-size="8.5" fill="#3f6b52">resident on GPU ~0.3&#8239;GB</text>
+  <text x="936" y="212" font-size="8.5" fill="#3f6b52">each finished sentence is</text>
+  <text x="936" y="225" font-size="8.5" fill="#3f6b52">synthesised as it arrives</text>
+  <text x="936" y="240" font-size="8.3" fill="#7d9a89">emoji stripped &#8212; never spoken</text>
+
+  <!-- speaker back -->
+  <rect x="1120" y="158" width="168" height="92" rx="12" fill="#eef7ff" stroke="#7fb0dd"/>
+  <g filter="url(#tsh)"><rect x="1132" y="170" width="30" height="30" rx="8" fill="url(#azG)"/></g><use href="#g-user" x="1139" y="177" width="16" height="16" style="color:#fff"/>
+  <text x="1170" y="182" font-size="10.6" font-weight="700" fill="#0a3a66">Coach speaks back</text>
+  <text x="1132" y="207" font-size="8.5" fill="#5b7186">audio frames pushed down</text>
+  <text x="1132" y="220" font-size="8.5" fill="#5b7186">the same socket, in order</text>
+  <text x="1132" y="235" font-size="8.3" fill="#8aa0b3">voice-to-voice, nothing leaves</text>
+  <text x="1132" y="246" font-size="8.3" fill="#8aa0b3">the machine</text>
+
+  <!-- budget note -->
+  <g filter="url(#tsh)"><rect x="1316" y="158" width="224" height="92" rx="12" fill="#fff9ec" stroke="#e0a92e" stroke-width="1.7"/></g>
+  <use href="#g-clock" x="1328" y="168" width="20" height="20" style="color:#c9760f"/>
+  <text x="1356" y="178" font-size="10.6" font-weight="700" fill="#8a5310">The 300&#8239;ms contract</text>
+  <text x="1328" y="199" font-size="8.5" fill="#7a5a20">time-to-first-audio is a budget,</text>
+  <text x="1328" y="212" font-size="8.5" fill="#7a5a20">not an aspiration &#8212; measured by</text>
+  <text x="1328" y="225" font-size="8.5" fill="#7a5a20" font-family="Consolas,monospace">scripts/profile_hotpath.py</text>
+  <text x="1328" y="241" font-size="8.3" fill="#a98b4e">and tracked as a p95 in Grafana</text>
+
+  <!-- band1 row2 notes -->
+  <rect x="60" y="268" width="730" height="84" rx="12" fill="#eef7ff" stroke="#bcd8ef"/>
+  <use href="#g-sync" x="76" y="280" width="18" height="18" style="color:#0a6bc2"/>
+  <text x="104" y="286" font-size="10.6" font-weight="800" fill="#0a3a66">The turn contract</text>
+  <text x="78" y="308" font-size="9.2" fill="#33485c"><tspan font-weight="700" fill="#0a6bc2">In:</tspan> raw PCM16 frames. <tspan font-weight="700" fill="#0a6bc2">Out:</tspan> <tspan font-family="Consolas,monospace">transcript</tspan> &#183; <tspan font-family="Consolas,monospace">reply</tspan> tokens &#183; <tspan font-family="Consolas,monospace">audio</tspan> chunks &#183; <tspan font-family="Consolas,monospace">done</tspan>.</text>
+  <text x="78" y="326" font-size="9.2" fill="#33485c">At turn end the pipeline publishes <tspan font-family="Consolas,monospace" font-weight="700" fill="#0a8293">UtteranceFinalized</tspan> on the in-process bus.</text>
+  <text x="78" y="344" font-size="8.6" fill="#8aa0b3">That single event is the ONLY handoff to the cold path. Learner audio is optionally persisted for re-analysis.</text>
+
+  <rect x="810" y="268" width="730" height="84" rx="12" fill="#f6effc" stroke="#c7abe4"/>
+  <use href="#g-target" x="826" y="280" width="18" height="18" style="color:#6a17a0"/>
+  <text x="854" y="286" font-size="10.6" font-weight="800" fill="#5f2ba0">Pitched at THIS learner</text>
+  <text x="828" y="308" font-size="9.2" fill="#5a4a75"><tspan font-family="Consolas,monospace" font-weight="700">coach_system_prompt(level, topic)</tspan> &#8212; 0 Beginner &#8594; 5 Native-like, one persona per band.</text>
+  <text x="828" y="326" font-size="9.2" fill="#5a4a75">Topics come from <tspan font-family="Consolas,monospace">/topics</tspan>; the level comes from the learner's own stored profile.</text>
+  <text x="828" y="344" font-size="8.6" fill="#8f80ab">Reasoning mode is disabled on the hot model &#8212; correctness of tone matters more than deliberation at 300&#8239;ms.</text>
+
+  <!-- band1 connectors -->
+  <path d="M256,204 H284" fill="none" stroke="#0B6BB3" stroke-width="2.4" marker-end="url(#aN)"/>
+  <path d="M452,204 H480" fill="none" stroke="#0B6BB3" stroke-width="2.4" marker-end="url(#aN)"/>
+  <path d="M648,204 H676" fill="none" stroke="#0B6BB3" stroke-width="2.4" marker-end="url(#aN)"/>
+  <path d="M896,204 H924" fill="none" stroke="#2e8f5c" stroke-width="2.4" marker-end="url(#aG)"/>
+  <path d="M1092,204 H1120" fill="none" stroke="#2e8f5c" stroke-width="2.4" marker-end="url(#aG)"/>
+
+  <!-- ================= BAND 2 : COLD PATH ================= -->
+  <rect x="40" y="390" width="1520" height="282" rx="14" fill="#eefaf9" stroke="#4fbfb8"/>
+  <text x="60" y="416" font-size="13" font-weight="800" fill="#086f7d">&#9313; COLD PATH — score the turn that just happened: evaluate &#8594; weigh &#8594; level &#8594; update the profile</text>
+  <text x="60" y="434" font-size="9.4" fill="#0a8293"><tspan font-weight="700">Deferrable by design.</tspan> Under resource pressure the guard pauses this whole band first &#8212; the learner keeps talking, the scores simply arrive later.</text>
+
+  <!-- event bus -->
+  <g filter="url(#tsh)"><rect x="60" y="450" width="188" height="94" rx="12" fill="#ffffff" stroke="#4fbfb8"/></g>
+  <use href="#g-queue" x="72" y="460" width="20" height="20" style="color:#0a8293"/>
+  <text x="100" y="470" font-size="10.6" font-weight="700" fill="#0a3a66">Event bus</text>
+  <text x="72" y="491" font-size="8.5" fill="#5b7186">asyncio, in-process</text>
+  <text x="72" y="504" font-size="8.5" fill="#5b7186">no broker, no network</text>
+  <text x="72" y="517" font-size="8.5" fill="#5b7186" font-family="Consolas,monospace">UtteranceFinalized</text>
+  <text x="72" y="534" font-size="8.3" fill="#8aa0b3">one process = one moving part</text>
+
+  <!-- worker -->
+  <g filter="url(#tsh)"><rect x="276" y="450" width="188" height="94" rx="12" fill="#ffffff" stroke="#4fbfb8"/></g>
+  <use href="#g-cog" x="288" y="460" width="20" height="20" style="color:#0a8293"/>
+  <text x="316" y="470" font-size="10.6" font-weight="700" fill="#0a3a66">Cold-path worker</text>
+  <text x="288" y="491" font-size="8.5" fill="#5b7186">queued, one turn at a time</text>
+  <text x="288" y="504" font-size="8.5" fill="#5b7186"><tspan font-weight="700">idempotent</tspan> per utterance</text>
+  <text x="288" y="517" font-size="8.5" fill="#5b7186">&#8594; one durable assessment</text>
+  <text x="288" y="534" font-size="8.3" fill="#8aa0b3">re-delivery never double-scores</text>
+
+  <!-- evaluators container -->
+  <rect x="484" y="442" width="714" height="104" rx="12" fill="#f4fdfc" stroke="#7fd4cf" stroke-dasharray="5 4"/>
+  <text x="498" y="458" font-size="9.4" font-weight="800" fill="#086f7d">EVALUATORS &#8212; three independent signals per utterance, then merged</text>
+
+  <g filter="url(#tsh)"><rect x="496" y="464" width="222" height="76" rx="11" fill="#ffffff" stroke="#4fbfb8"/></g>
+  <text x="510" y="482" font-size="10" font-weight="700" fill="#0a3a66">Batched LLM evaluator</text>
+  <text x="510" y="499" font-size="8.4" fill="#5b7186">cold Qwen3-14B &#183; <tspan font-weight="700">ONE JSON call</tspan></text>
+  <text x="510" y="512" font-size="8.4" fill="#5b7186">grammar &#183; vocabulary &#183; listening</text>
+  <text x="510" y="525" font-size="8.4" fill="#5b7186">coherence &#183; relevance</text>
+
+  <g filter="url(#tsh)"><rect x="730" y="464" width="222" height="76" rx="11" fill="#ffffff" stroke="#4fbfb8"/></g>
+  <text x="744" y="482" font-size="10" font-weight="700" fill="#0a3a66">Fluency &amp; confidence</text>
+  <text x="744" y="499" font-size="8.4" fill="#5b7186">deterministic &#8212; <tspan font-weight="700">no model at all</tspan></text>
+  <text x="744" y="512" font-size="8.4" fill="#5b7186">speech rate &#183; pauses &#183; fillers</text>
+  <text x="744" y="525" font-size="8.4" fill="#5b7186">hedging &#183; restarts</text>
+
+  <g filter="url(#tsh)"><rect x="964" y="464" width="222" height="76" rx="11" fill="#ffffff" stroke="#4fbfb8"/></g>
+  <text x="978" y="482" font-size="10" font-weight="700" fill="#0a3a66">Pronunciation &#8212; GOP</text>
+  <text x="978" y="499" font-size="8.4" fill="#5b7186">wav2vec2 phoneme CTC, ~1.5&#8239;GB</text>
+  <text x="978" y="512" font-size="8.4" fill="#5b7186">goodness-of-pronunciation per</text>
+  <text x="978" y="525" font-size="8.4" fill="#5b7186">phoneme &#183; proxy fallback if off</text>
+
+  <!-- deferral note -->
+  <rect x="1218" y="450" width="322" height="94" rx="12" fill="#fff9ec" stroke="#e0a92e"/>
+  <use href="#g-gauge" x="1232" y="462" width="18" height="18" style="color:#c9760f"/>
+  <text x="1260" y="468" font-size="10.4" font-weight="800" fill="#8a5310">Why this path is separate</text>
+  <text x="1234" y="490" font-size="8.7" fill="#7a5a20">A 14B evaluation costs seconds and VRAM. Putting</text>
+  <text x="1234" y="503" font-size="8.7" fill="#7a5a20">it in the conversation would make the coach pause</text>
+  <text x="1234" y="516" font-size="8.7" fill="#7a5a20">mid-dialogue &#8212; the one thing a speaking partner</text>
+  <text x="1234" y="529" font-size="8.7" fill="#7a5a20">must never do. So it runs behind, and can wait.</text>
+
+  <!-- scoring hero -->
+  <g filter="url(#tsh)"><rect x="60" y="562" width="330" height="86" rx="13" fill="url(#azHeroC)"/></g>
+  <use href="#g-scale" x="76" y="574" width="20" height="20" style="color:#b6f0ec"/>
+  <text x="106" y="588" font-size="11.6" font-weight="800" fill="#ffffff">Versioned scoring &#8212; <tspan font-family="Consolas,monospace">v1</tspan></text>
+  <text x="76" y="608" font-size="8.8" fill="#d5f4f2">8 dimensions &#215; fixed weights &#8594; overall 0&#8211;100 &#8594; level 0&#8211;5</text>
+  <text x="76" y="622" font-size="8.8" fill="#d5f4f2">renormalized over the dimensions actually present</text>
+  <text x="76" y="638" font-size="8.5" fill="#8fd4d0"><tspan font-weight="800" fill="#ffe6a8">append-only</tspan> &#8212; a version is never edited in place, so old trends stay readable</text>
+
+  <!-- profile update -->
+  <g filter="url(#tsh)"><rect x="418" y="562" width="330" height="86" rx="12" fill="#f6effc" stroke="#b58fd8"/></g>
+  <g filter="url(#tsh)"><rect x="432" y="574" width="30" height="30" rx="8" fill="url(#azT)"/></g><use href="#g-user" x="439" y="581" width="16" height="16" style="color:#fff"/>
+  <text x="472" y="586" font-size="10.8" font-weight="700" fill="#3a1660">Profile updated</text>
+  <text x="472" y="600" font-size="8.5" fill="#7a7193">one learner = one durable record</text>
+  <text x="434" y="620" font-size="8.7" fill="#5a4a75">per-skill scores &#183; overall &#183; level &#183; streak &#183; trend</text>
+  <text x="434" y="634" font-size="8.7" fill="#5a4a75">&#183; time-to-next-level estimate</text>
+
+  <!-- assessment ready -->
+  <g filter="url(#tsh)"><rect x="776" y="562" width="330" height="86" rx="12" fill="#ffffff" stroke="#4fbfb8"/></g>
+  <use href="#g-check" x="790" y="574" width="20" height="20" style="color:#0a8293"/>
+  <text x="818" y="588" font-size="10.8" font-weight="700" fill="#0a3a66"><tspan font-family="Consolas,monospace">AssessmentReady</tspan> &#8594; the dashboard</text>
+  <text x="790" y="610" font-size="8.7" fill="#5b7186">the assessment, its per-dimension scores and the raw</text>
+  <text x="790" y="623" font-size="8.7" fill="#5b7186">evaluator outputs are all readable over REST</text>
+  <text x="790" y="639" font-size="8.4" fill="#8aa0b3"><tspan font-family="Consolas,monospace">/users/{id}/assessments</tspan> &#183; <tspan font-family="Consolas,monospace">/utterances/{id}/evaluator-outputs</tspan></text>
+
+  <!-- eight dims -->
+  <rect x="1134" y="562" width="406" height="86" rx="12" fill="#eefaf9" stroke="#7fd4cf"/>
+  <text x="1148" y="580" font-size="9.6" font-weight="800" fill="#086f7d">THE EIGHT SCORED DIMENSIONS (0&#8211;100, stable order)</text>
+  <circle cx="1154" cy="598" r="4" fill="#0a8293"/><text x="1164" y="602" font-size="8.8" fill="#33485c">pronunciation</text>
+  <circle cx="1268" cy="598" r="4" fill="#0a8293"/><text x="1278" y="602" font-size="8.8" fill="#33485c">grammar</text>
+  <circle cx="1372" cy="598" r="4" fill="#0a8293"/><text x="1382" y="602" font-size="8.8" fill="#33485c">vocabulary</text>
+  <circle cx="1154" cy="618" r="4" fill="#0a8293"/><text x="1164" y="622" font-size="8.8" fill="#33485c">listening</text>
+  <circle cx="1268" cy="618" r="4" fill="#0a8293"/><text x="1278" y="622" font-size="8.8" fill="#33485c">fluency</text>
+  <circle cx="1372" cy="618" r="4" fill="#0a8293"/><text x="1382" y="622" font-size="8.8" fill="#33485c">confidence</text>
+  <circle cx="1154" cy="638" r="4" fill="#0a8293"/><text x="1164" y="642" font-size="8.8" fill="#33485c">coherence</text>
+  <circle cx="1268" cy="638" r="4" fill="#0a8293"/><text x="1278" y="642" font-size="8.8" fill="#33485c">relevance</text>
+  <text x="1372" y="642" font-size="8.3" fill="#8aa0b3">the radar's axes</text>
+
+  <!-- band2 connectors -->
+  <path d="M248,497 H276" fill="none" stroke="#0a8293" stroke-width="2.4" marker-end="url(#aC)"/>
+  <path d="M464,494 H484" fill="none" stroke="#0a8293" stroke-width="2.4" marker-end="url(#aC)"/>
+  <path d="M700,546 C700,558 340,552 226,562" fill="none" stroke="#0a8293" stroke-width="2.2" marker-end="url(#aC)"/>
+  <path d="M390,605 H418" fill="none" stroke="#0a8293" stroke-width="2.4" marker-end="url(#aC)"/>
+  <path d="M748,605 H776" fill="none" stroke="#7a1fa2" stroke-width="2.4" marker-end="url(#aP)"/>
+
+  <!-- ================= BAND 3 : PROFILE, INSIGHTS & THE LOOP ================= -->
+  <rect x="40" y="692" width="1520" height="250" rx="14" fill="#f7f1fc" stroke="#b58fd8"/>
+  <text x="60" y="718" font-size="13" font-weight="800" fill="#5f2ba0">&#9314; PROFILE, INSIGHTS &amp; THE LEARNING LOOP — what the stored history is actually FOR</text>
+
+  <!-- store -->
+  <g filter="url(#tsh)"><rect x="60" y="740" width="240" height="100" rx="12" fill="#ffffff" stroke="#b58fd8"/></g>
+  <g filter="url(#tsh)"><rect x="74" y="752" width="32" height="32" rx="8" fill="url(#azT)"/></g><use href="#g-sql" x="82" y="760" width="16" height="16" style="color:#fff"/>
+  <text x="116" y="764" font-size="10.8" font-weight="700" fill="#3a1660">SQLite (WAL) &#8212; one file</text>
+  <text x="116" y="779" font-size="8.5" fill="#7a7193">forward-only migrations</text>
+  <text x="74" y="800" font-size="8.6" fill="#5a4a75">users &#183; sessions &#183; utterances</text>
+  <text x="74" y="813" font-size="8.6" fill="#5a4a75">assessments &#183; evaluator outputs</text>
+  <text x="74" y="826" font-size="8.6" fill="#5a4a75">gap snapshots &#183; plans</text>
+  <text x="74" y="837" font-size="8.2" fill="#9a8fb3">no server, no cloud, portable</text>
+
+  <!-- gaps -->
+  <g filter="url(#tsh)"><rect x="328" y="740" width="210" height="100" rx="12" fill="#ffffff" stroke="#b58fd8"/></g>
+  <use href="#g-funnel" x="340" y="750" width="20" height="20" style="color:#6a17a0"/>
+  <text x="368" y="760" font-size="10.6" font-weight="700" fill="#3a1660">Gap analysis</text>
+  <text x="340" y="782" font-size="8.5" fill="#5a4a75">importance-weighted, ranked</text>
+  <text x="340" y="795" font-size="8.5" fill="#5a4a75">distance from an 85 target</text>
+  <text x="340" y="808" font-size="8.5" fill="#5a4a75">snapshots &#8594; movement over time</text>
+  <text x="340" y="826" font-size="8.3" fill="#9a8fb3">also surfaces "most improved" &#8212;</text>
+  <text x="340" y="837" font-size="8.3" fill="#9a8fb3">progress, not just deficits</text>
+
+  <!-- plan -->
+  <g filter="url(#tsh)"><rect x="566" y="740" width="210" height="100" rx="12" fill="#ffffff" stroke="#b58fd8"/></g>
+  <use href="#g-book" x="578" y="750" width="20" height="20" style="color:#6a17a0"/>
+  <text x="606" y="760" font-size="10.6" font-weight="700" fill="#3a1660">Adaptive study plan</text>
+  <text x="578" y="782" font-size="8.5" fill="#5a4a75">difficulty set by the recent</text>
+  <text x="578" y="795" font-size="8.5" fill="#5a4a75">trend &#8212; harder if climbing,</text>
+  <text x="578" y="808" font-size="8.5" fill="#5a4a75">gentler if stalling</text>
+  <text x="578" y="826" font-size="8.3" fill="#9a8fb3">targeted activities chosen per</text>
+  <text x="578" y="837" font-size="8.3" fill="#9a8fb3">weak skill, not generic drills</text>
+
+  <!-- feedback -->
+  <g filter="url(#tsh)"><rect x="804" y="740" width="210" height="100" rx="12" fill="#ffffff" stroke="#b58fd8"/></g>
+  <use href="#g-eye" x="816" y="750" width="20" height="20" style="color:#6a17a0"/>
+  <text x="844" y="760" font-size="10.6" font-weight="700" fill="#3a1660">Post-session feedback</text>
+  <text x="816" y="782" font-size="8.5" fill="#5a4a75">strengths &#183; weaknesses</text>
+  <text x="816" y="795" font-size="8.5" fill="#5a4a75">concrete corrections, quoted</text>
+  <text x="816" y="808" font-size="8.5" fill="#5a4a75">back from what was said</text>
+  <text x="816" y="826" font-size="8.3" fill="#9a8fb3">delivered AFTER the conversation,</text>
+  <text x="816" y="837" font-size="8.3" fill="#9a8fb3">never interrupting it</text>
+
+  <!-- report hero -->
+  <g filter="url(#tsh)"><rect x="1042" y="734" width="220" height="106" rx="13" fill="url(#azGold)"/></g>
+  <use href="#g-star" x="1056" y="746" width="22" height="22" style="color:#fff5da"/>
+  <text x="1086" y="760" font-size="11.4" font-weight="800" fill="#ffffff">Coach report</text>
+  <text x="1058" y="782" font-size="8.7" fill="#fff3d4">one click &#8212; <tspan font-weight="800">JSON &#183; CSV &#183; Excel &#183; PDF</tspan></text>
+  <text x="1058" y="796" font-size="8.7" fill="#fff3d4">scores, gaps, plan and the</text>
+  <text x="1058" y="810" font-size="8.7" fill="#fff3d4">written verdict in one document</text>
+  <text x="1058" y="828" font-size="8.5" fill="#ffe9bd">also rendered in-app, so the learner</text>
+  <text x="1058" y="838" font-size="8.5" fill="#ffe9bd">never has to leave to see it</text>
+
+  <!-- front ends -->
+  <rect x="1290" y="740" width="250" height="100" rx="12" fill="#f2ecfb" stroke="#c7abe4"/>
+  <use href="#g-chart" x="1304" y="750" width="18" height="18" style="color:#6a17a0"/>
+  <text x="1330" y="760" font-size="10.4" font-weight="800" fill="#5f2ba0">Two front-ends, one API</text>
+  <text x="1304" y="782" font-size="8.6" fill="#5a4a75"><tspan font-family="Consolas,monospace">frontend/index.html</tspan> &#8212; zero-dep,</text>
+  <text x="1304" y="794" font-size="8.6" fill="#5a4a75">no build, served by FastAPI on :8000</text>
+  <text x="1304" y="811" font-size="8.6" fill="#5a4a75"><tspan font-family="Consolas,monospace">frontend-next/</tspan> &#8212; Next.js 14 +</text>
+  <text x="1304" y="823" font-size="8.6" fill="#5a4a75">Tailwind + Recharts on :3000</text>
+  <text x="1304" y="837" font-size="8.3" fill="#9a8fb3">tabs: Dashboard &#183; Practice &#183; Monitor &#183; Report</text>
+
+  <!-- band3 connectors -->
+  <path d="M300,790 H328" fill="none" stroke="#7a1fa2" stroke-width="2.4" marker-end="url(#aP)"/>
+  <path d="M538,790 H566" fill="none" stroke="#7a1fa2" stroke-width="2.4" marker-end="url(#aP)"/>
+  <path d="M776,790 H804" fill="none" stroke="#7a1fa2" stroke-width="2.4" marker-end="url(#aP)"/>
+  <path d="M1014,790 H1042" fill="none" stroke="#c07d08" stroke-width="2.4" marker-end="url(#aGold)"/>
+  <path d="M1262,790 H1290" fill="none" stroke="#c07d08" stroke-width="2.4" marker-end="url(#aGold)"/>
+
+  <!-- the loop -->
+  <path d="M1152,842 C1152,876 780,884 420,880 260,878 180,872 180,842" fill="none" stroke="#6a17a0" stroke-width="1.9" stroke-dasharray="5 4" marker-end="url(#aP)"/>
+  <text x="612" y="874" font-size="8.9" font-weight="700" fill="#6a17a0">every scored turn re-ranks the gaps and re-writes the plan</text>
+  <text x="60" y="906" font-size="9.3" fill="#5a4a75"><tspan font-weight="700" fill="#5f2ba0">The loop closes back into Band &#9312;:</tspan> the profile's current level and the chosen topic become the coach's system prompt, so the very next question is pitched where the learner actually is &#8212; not where they started.</text>
+  <text x="60" y="928" font-size="9.3" fill="#5a4a75"><tspan font-weight="700" fill="#5f2ba0">Longitudinal by construction:</tspan> assessments are append-only and stamped with the scoring version that produced them, so a trend line drawn across months stays honest even after the weights are retuned.</text>
+
+  <!-- ================= BAND 4 : RUNTIME, MODELS & THE 96% CEILING ================= -->
+  <rect x="40" y="962" width="1520" height="300" rx="14" fill="#eef7ff" stroke="#7fb0dd"/>
+  <text x="60" y="988" font-size="13" font-weight="800" fill="#0a3a66">&#9315; RUNTIME, MODELS &amp; THE 96% CEILING — one workstation, two processes, four resident models, one hard limit</text>
+
+  <!-- windows host -->
+  <rect x="60" y="1008" width="560" height="206" rx="12" fill="#f5f8fb" stroke="#a9c4dc" stroke-dasharray="5 4"/>
+  <use href="#g-win" x="74" y="1018" width="18" height="18" style="color:#3a4a58"/>
+  <text x="100" y="1032" font-size="10.6" font-weight="700" fill="#3a4a58">Windows 11 host &#8212; native, <tspan font-weight="800">no Docker</tspan></text>
+
+  <g filter="url(#tsh)"><rect x="76" y="1042" width="264" height="104" rx="13" fill="url(#azHero)"/></g>
+  <use href="#g-cube" x="90" y="1054" width="20" height="20" style="color:#bfe3ff"/>
+  <text x="120" y="1068" font-size="11.4" font-weight="800" fill="#ffffff">FastAPI &#183; :8000</text>
+  <line x1="90" y1="1078" x2="326" y2="1078" stroke="#4f9bd6" stroke-width="1"/>
+  <text x="90" y="1094" font-size="8.8" fill="#dbeeff">REST + <tspan font-family="Consolas,monospace">/ws/session</tspan> + the served SPA</text>
+  <text x="90" y="1108" font-size="8.8" fill="#dbeeff">lifespan boots guard &#8594; registry &#8594; cold worker</text>
+  <text x="90" y="1122" font-size="8.8" fill="#dbeeff">STT / GOP / TTS load <tspan font-weight="800" fill="#ffe6a8">in this process</tspan></text>
+  <text x="90" y="1138" font-size="8.4" fill="#9fc9ee">run it with the venv python, not a lockfile re-sync</text>
+
+  <g filter="url(#tsh)"><rect x="356" y="1042" width="248" height="104" rx="12" fill="#ffffff" stroke="#7fb0dd"/></g>
+  <use href="#g-store" x="368" y="1052" width="20" height="20" style="color:#0a6bc2"/>
+  <text x="396" y="1062" font-size="10.4" font-weight="700" fill="#0a3a66">State on disk</text>
+  <text x="368" y="1084" font-size="8.5" fill="#5b7186" font-family="Consolas,monospace">data/coach.db</text><text x="470" y="1084" font-size="8.5" fill="#8aa0b3">&#8212; SQLite WAL</text>
+  <text x="368" y="1098" font-size="8.5" fill="#5b7186" font-family="Consolas,monospace">models/</text><text x="424" y="1098" font-size="8.5" fill="#8aa0b3">&#8212; STT, GOP, Kokoro weights</text>
+  <text x="368" y="1112" font-size="8.5" fill="#5b7186" font-family="Consolas,monospace">data/reports/</text><text x="470" y="1112" font-size="8.5" fill="#8aa0b3">&#8212; generated reports</text>
+  <text x="368" y="1130" font-size="8.3" fill="#8aa0b3">weights are fetched ONCE, deliberately, and</text>
+  <text x="368" y="1141" font-size="8.3" fill="#8aa0b3">logged &#8212; never silently downloaded at runtime</text>
+
+  <rect x="76" y="1158" width="528" height="46" rx="10" fill="#eef7ff" stroke="#bcd8ef"/>
+  <use href="#g-eye" x="88" y="1170" width="16" height="16" style="color:#0a6bc2"/>
+  <text x="112" y="1176" font-size="9.4" font-weight="700" fill="#0a3a66">Observability is always on</text>
+  <text x="112" y="1192" font-size="8.5" fill="#33485c"><tspan font-family="Consolas,monospace">/metrics</tspan> Prometheus &#183; <tspan font-family="Consolas,monospace">/guard</tspan> &#183; <tspan font-family="Consolas,monospace">/stats</tspan> &#183; <tspan font-family="Consolas,monospace">/healthz</tspan> &#183; structured JSON logs with correlation ids &#183; Grafana dashboard shipped in <tspan font-family="Consolas,monospace">assets/</tspan></text>
+
+  <!-- wsl -->
+  <rect x="644" y="1008" width="260" height="206" rx="12" fill="#f5f8fb" stroke="#a9c4dc" stroke-dasharray="5 4"/>
+  <use href="#g-layers" x="658" y="1018" width="18" height="18" style="color:#3a4a58"/>
+  <text x="684" y="1032" font-size="10.6" font-weight="700" fill="#3a4a58">WSL2 (Ubuntu)</text>
+
+  <g filter="url(#tsh)"><rect x="660" y="1042" width="228" height="104" rx="13" fill="url(#azHero)"/></g>
+  <use href="#g-cog" x="674" y="1054" width="20" height="20" style="color:#bfe3ff"/>
+  <text x="704" y="1068" font-size="11.4" font-weight="800" fill="#ffffff">vLLM &#183; :8001</text>
+  <line x1="674" y1="1078" x2="874" y2="1078" stroke="#4f9bd6" stroke-width="1"/>
+  <text x="674" y="1094" font-size="8.8" fill="#dbeeff">serves <tspan font-family="Consolas,monospace">Qwen3-8B-AWQ</tspan> over an</text>
+  <text x="674" y="1108" font-size="8.8" fill="#dbeeff">OpenAI-compatible HTTP API</text>
+  <text x="674" y="1124" font-size="8.8" fill="#dbeeff">the app never imports vLLM &#8212;</text>
+  <text x="674" y="1136" font-size="8.8" fill="#dbeeff">it only speaks HTTP to it</text>
+
+  <text x="660" y="1166" font-size="8.5" fill="#5b7186">vLLM has no native Windows build, so the LLM</text>
+  <text x="660" y="1179" font-size="8.5" fill="#5b7186">lives in WSL2 while the app stays native.</text>
+  <text x="660" y="1196" font-size="8.3" fill="#8aa0b3">Pinned deliberately: the installed driver is CUDA 12.9,</text>
+  <text x="660" y="1207" font-size="8.3" fill="#8aa0b3">so vLLM stays on the matching CUDA-12 build.</text>
+
+  <!-- gpu -->
+  <g filter="url(#tsh)"><rect x="928" y="1008" width="272" height="206" rx="12" fill="#ffffff" stroke="#7fb0dd"/></g>
+  <use href="#g-chip" x="942" y="1020" width="20" height="20" style="color:#0a6bc2"/>
+  <text x="970" y="1034" font-size="10.8" font-weight="700" fill="#0a3a66">One GPU, shared</text>
+  <text x="942" y="1050" font-size="8.5" fill="#8aa0b3">RTX 5080 Laptop &#183; 16&#8239;GB VRAM &#8212; the resident set</text>
+
+  <rect x="942" y="1060" width="244" height="24" rx="6" fill="#eef7ff" stroke="#bcd8ef"/>
+  <circle cx="956" cy="1072" r="4.5" fill="#0B6BB3"/><text x="968" y="1076" font-size="8.7" fill="#33485c">vLLM (Qwen3-8B-AWQ)</text><text x="1148" y="1076" font-size="8.7" font-weight="700" fill="#0a3a66" text-anchor="end">reserved</text>
+  <rect x="942" y="1090" width="244" height="24" rx="6" fill="#eef7ff" stroke="#bcd8ef"/>
+  <circle cx="956" cy="1102" r="4.5" fill="#1E9BD7"/><text x="968" y="1106" font-size="8.7" fill="#33485c">Whisper large-v3-turbo</text><text x="1148" y="1106" font-size="8.7" font-weight="700" fill="#0a3a66" text-anchor="end">~1.9 GB</text>
+  <rect x="942" y="1120" width="244" height="24" rx="6" fill="#eefaf9" stroke="#7fd4cf"/>
+  <circle cx="956" cy="1132" r="4.5" fill="#0a8293"/><text x="968" y="1136" font-size="8.7" fill="#33485c">wav2vec2 GOP</text><text x="1148" y="1136" font-size="8.7" font-weight="700" fill="#0a3a66" text-anchor="end">~1.5 GB</text>
+  <rect x="942" y="1150" width="244" height="24" rx="6" fill="#f2fbf6" stroke="#7cc79b"/>
+  <circle cx="956" cy="1162" r="4.5" fill="#2e8f5c"/><text x="968" y="1166" font-size="8.7" fill="#33485c">Kokoro-82M TTS</text><text x="1148" y="1166" font-size="8.7" font-weight="700" fill="#0a3a66" text-anchor="end">~0.3 GB</text>
+
+  <rect x="942" y="1180" width="244" height="26" rx="7" fill="#fdeaec" stroke="#e79aa2"/>
+  <text x="952" y="1190" font-size="8.3" fill="#a3202f"><tspan font-weight="800">Startup refuses to boot</tspan> if the resident set</text>
+  <text x="952" y="1201" font-size="8.3" fill="#a3202f">would cross the ceiling &#8212; rather than OOM later.</text>
+
+  <!-- guard -->
+  <g filter="url(#tsh)"><rect x="1224" y="1008" width="316" height="206" rx="12" fill="#fff9ec" stroke="#e0a92e" stroke-width="1.8"/></g>
+  <g filter="url(#tsh)"><rect x="1238" y="1018" width="30" height="30" rx="8" fill="url(#azA)"/></g><use href="#g-shield" x="1245" y="1025" width="16" height="16" style="color:#fff"/>
+  <text x="1278" y="1030" font-size="11" font-weight="800" fill="#8a5310">ResourceGuard &#8212; the 96% ceiling</text>
+  <text x="1278" y="1044" font-size="8.4" fill="#a98b4e">the constraint the whole design is built around</text>
+  <text x="1238" y="1064" font-size="8.5" fill="#7a5a20">psutil + NVML sampler @1&#8239;s &#183; rolling window of 3 &#183; hysteresis</text>
+  <text x="1238" y="1076" font-size="8.5" fill="#7a5a20">0.06 so the ladder never flaps. VRAM, GPU, RAM, CPU, disk.</text>
+
+  <rect x="1238" y="1086" width="288" height="21" rx="6" fill="#eef8f0" stroke="#7cc79b"/>
+  <circle cx="1250" cy="1096" r="4.2" fill="#2e8f5c"/><text x="1262" y="1100" font-size="8.5" fill="#1c6b41"><tspan font-weight="700">L1 &#183; 0.88</tspan> &#8212; pause cold-path jobs</text>
+  <rect x="1238" y="1112" width="288" height="21" rx="6" fill="#fdf4e6" stroke="#e6b567"/>
+  <circle cx="1250" cy="1122" r="4.2" fill="#d9821a"/><text x="1262" y="1126" font-size="8.5" fill="#8a5310"><tspan font-weight="700">L2 &#183; 0.92</tspan> &#8212; trim LLM context and reply tokens</text>
+  <rect x="1238" y="1138" width="288" height="21" rx="6" fill="#fdeee2" stroke="#e6a067"/>
+  <circle cx="1250" cy="1148" r="4.2" fill="#c9760f"/><text x="1262" y="1152" font-size="8.5" fill="#8a4310"><tspan font-weight="700">L3 &#183; 0.94</tspan> &#8212; shrink STT / TTS work</text>
+  <rect x="1238" y="1164" width="288" height="21" rx="6" fill="#fdeaec" stroke="#e79aa2"/>
+  <circle cx="1250" cy="1174" r="4.2" fill="#cf2c3d"/><text x="1262" y="1178" font-size="8.5" fill="#a3202f"><tspan font-weight="700">L4 &#183; 0.96</tspan> &#8212; reject NEW sessions</text>
+
+  <text x="1238" y="1200" font-size="8.6" font-weight="700" fill="#8a5310">Graceful degradation, never a freeze &#8212; and never at the</text>
+  <text x="1238" y="1210" font-size="8.6" font-weight="700" fill="#8a5310">expense of the turn already in flight.</text>
+
+  <!-- band4 connectors -->
+  <path d="M340,1094 H356" fill="none" stroke="#0B6BB3" stroke-width="2" marker-end="url(#aN)"/>
+  <path d="M620,1094 H644" fill="none" stroke="#0B6BB3" stroke-width="2.4" marker-end="url(#aN)"/>
+  <text x="600" y="1086" font-size="8.4" font-weight="700" fill="#0a6bc2">HTTP</text>
+  <path d="M904,1094 H928" fill="none" stroke="#0B6BB3" stroke-width="2.4" marker-end="url(#aN)"/>
+  <path d="M1200,1094 H1224" fill="none" stroke="#c9760f" stroke-width="2.4" marker-end="url(#aA)"/>
+  <text x="1196" y="1086" font-size="8.4" font-weight="700" fill="#c9760f" text-anchor="end">sampled</text>
+
+  <!-- footer -->
+  <text x="48" y="1292" font-size="9" fill="#8aa0b3">AI English Coach &#183; Solution Design &#8212; stack: FastAPI &#183; uv &#183; SQLite (WAL) &#183; faster-whisper &#183; wav2vec2 GOP &#183; Kokoro-82M &#183; vLLM / Qwen3 &#183; Prometheus + Grafana &#183; Next.js dashboard &#8212; fully offline, no Docker, no cloud, one 96% ceiling.</text>
+</svg>
+</div>
+</body>
+</html>
