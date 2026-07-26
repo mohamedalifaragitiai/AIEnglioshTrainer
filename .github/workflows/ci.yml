@@ -10,6 +10,11 @@ jobs:
   backend:
     name: Backend (uv · ruff · pytest)
     runs-on: ubuntu-latest
+    # The whole job takes ~25s. Without a cap, a hanging test holds the runner for
+    # GitHub's 6-hour default — which is exactly what happened when a WebSocket turn
+    # stopped being closed out: three runs sat "in progress" for hours instead of
+    # failing. Fail fast and loudly instead.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +41,8 @@ jobs:
   frontend:
     name: Dashboard (typecheck · build)
     runs-on: ubuntu-latest
+    # npm ci + typecheck + build runs in ~45s; 15 leaves room for a cold npm cache.
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend-next
