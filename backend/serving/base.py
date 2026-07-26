@@ -150,6 +150,14 @@ class ModelRegistry:
         self._models: list[ManagedModel] = []
 
     def register(self, model: ManagedModel) -> None:
+        """Add a model. Names are the identity used by /models, /stats and the
+        Prometheus labels, so a duplicate is always a wiring bug — it would double
+        every count and make two rows indistinguishable. Fail loudly instead."""
+        if any(m.name == model.name for m in self._models):
+            raise ValueError(
+                f"model {model.name!r} is already registered — each name must be unique "
+                f"(it identifies the model in /models, /stats and the metric labels)"
+            )
         self._models.append(model)
 
     @property

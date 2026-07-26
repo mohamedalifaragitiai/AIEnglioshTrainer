@@ -169,20 +169,32 @@ def build_default_registry(
     # vLLM VRAM is the guard's reserved block; split the estimate across the two
     # entries for reporting only (they do not count toward the min-set sum).
     vllm_total_gb = settings.vllm_vram_fraction * 16.0
-    registry.register(
-        VLLMManagedModel(
-            f"vllm:{settings.vllm_hot_model}",
-            llm_client,
-            vram_gb=round(vllm_total_gb * 0.45, 1),
+    if settings.vllm_hot_model == settings.vllm_cold_model:
+        # One served model doing double duty for both paths: register it ONCE, with
+        # the whole reservation. Registering it twice made /stats list the same model
+        # in duplicate and over-report models_loaded.
+        registry.register(
+            VLLMManagedModel(
+                f"vllm:{settings.vllm_hot_model}",
+                llm_client,
+                vram_gb=round(vllm_total_gb, 1),
+            )
         )
-    )
-    registry.register(
-        VLLMManagedModel(
-            f"vllm:{settings.vllm_cold_model}",
-            llm_client,
-            vram_gb=round(vllm_total_gb * 0.55, 1),
+    else:
+        registry.register(
+            VLLMManagedModel(
+                f"vllm:{settings.vllm_hot_model}",
+                llm_client,
+                vram_gb=round(vllm_total_gb * 0.45, 1),
+            )
         )
-    )
+        registry.register(
+            VLLMManagedModel(
+                f"vllm:{settings.vllm_cold_model}",
+                llm_client,
+                vram_gb=round(vllm_total_gb * 0.55, 1),
+            )
+        )
     registry.register(WhisperSTTModel(settings))
     registry.register(Wav2Vec2GOPModel(settings))
     registry.register(KokoroTTSModel(settings))
