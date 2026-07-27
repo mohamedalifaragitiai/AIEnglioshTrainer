@@ -4,6 +4,11 @@ Everything is committed and pushed. The two servers (app + vLLM) stop on shutdow
 downloaded models, the WSL vLLM venv, and the SQLite data persist. To bring it all
 back up on this machine:
 
+> **Two machines run this project.** Everything up to "Machine-specific notes" describes
+> the **D: box** (17GB GPU, WSL2 + vLLM). For the **M: box** (6.44GB RTX 4050, no WSL,
+> everything on M:), skip to [Profile B](#profile-b--m-drive-644gb-gpu-no-wsl) — its
+> start commands and model set are different.
+
 ## 1. Start vLLM (in WSL2 — holds the LLM on the GPU)
 
 The WSL venv (`~/.vllm-venv`, vLLM 0.11.0 + `transformers<5`) and the AWQ weights are
@@ -118,3 +123,105 @@ editing the design, re-render at 2× so the text stays crisp:
 - Models on disk: STT/GOP/Kokoro in `models/`; Qwen3-8B-AWQ in the WSL HF cache.
 - **Isolation:** all in `D:/AI_English_Coach/english-coach` + WSL `~/.vllm-venv`.
   Nothing shared with other projects; app on 8000, vLLM on 8001.
+
+---
+
+# Profile B — M: drive, 6.44GB GPU, no WSL
+
+A second machine runs the same code with a different runtime. Nothing here lives on
+C:: the interpreter, venv, every package/model cache, the weights, and temp all sit
+under `M:\AIEnglioshTrainer`. Node is the pre-existing system install on C: (v24.14.0),
+but its cache is redirected to M: via an untracked `frontend-next\.npmrc`.
+
+```
+M:\AIEnglioshTrainer\
+  AIEnglioshTrainer\      the git repo (+ .venv, data\, models\)
+  tools\uv\               uv 0.11.32 (standalone binary)
+  tools\python\           CPython 3.12.13 (installed by uv, NOT on C:)
+  tools\llamacpp\         llama.cpp b10154, CUDA 12.4 build + CUDA runtime
+  models-llm\             Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+  cache\{uv,pip,hf,npm,torch}\  tmp\
+  env.ps1 start-llm.ps1 start-app.ps1
+```
+
+`env.ps1` is the whole trick: it exports `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`,
+`PIP_CACHE_DIR`, `HF_HOME`, `HF_HUB_CACHE`, `HF_DATASETS_CACHE`, `TRANSFORMERS_CACHE`,
+`TORCH_HOME`, `npm_config_cache`, and `TMP`/`TEMP` onto M:. Dot-source it before
+running anything by hand.
+
+## Start it (two terminals, in this order)
+
+The app health-checks the LLM at startup and refuses to boot if 8001 is silent.
+
+```powershell
+M:\AIEnglioshTrainer\start-llm.ps1     # wait for "listening on ... 8001"
+M:\AIEnglioshTrainer\start-app.ps1     # wait for "Uvicorn running on ... 8000"
+```
+
+Same UIs as Profile A: served UI on <http://127.0.0.1:8000/>, Next.js dashboard via
+`cd frontend-next; npm run dev` on <http://localhost:3000>.
+
+A fresh clone starts with an empty DB, so seed the learner once — otherwise the
+WebSocket closes with code **4404** (unknown user) and `live_turn_check.py` dies
+mid-stream:
+
+```powershell
+. M:\AIEnglioshTrainer\env.ps1
+& $env:COACH_PY scripts\seed_user.py
+```
+
+## What differs from Profile A, and why
+
+| | Profile A (D:) | Profile B (M:) |
+|---|---|---|
+| VRAM | ~17GB | **6.44GB** (RTX 4050 Laptop) |
+| Driver | 577.03 / CUDA 12.9 | **581.95 / CUDA 13.0** |
+| LLM server | vLLM in WSL2 | **llama.cpp on native Windows** — no WSL distro |
+| LLM | Qwen3-8B-AWQ (~5.5GB) | **Qwen3-4B-Instruct-2507 Q4_K_M** (~2.4GB) |
+| STT precision | float16 (~1.9GB) | **int8_float16** (~1.1GB) |
+| GOP device | cuda (~1.5GB) | **cpu** (cold path only) |
+
+The 6.44GB budget drives every swap: Profile A's resident set is ~14GB and does not
+fit. The app never imports vLLM — it only speaks OpenAI-compatible HTTP to `/v1/*` —
+so `llama-server` is a drop-in, with `--alias` set to match `COACH_VLLM_HOT_MODEL`.
+
+Qwen3-4B-**Instruct**-2507 is deliberate: the hybrid-thinking Qwen3 models emit
+`<think>` blocks into a latency-sensitive voice reply.
+
+`llama-server` runs `-c 4096` with `--cache-type-k q8_0 --cache-type-v q8_0`. With an
+f16 KV cache at `-c 8192` the resident set measured **5.7GB = 88.5%**, a hair over the
+guard's `ladder_l1` (0.88), which parks *all* cold-path assessment work and made
+`test_ws_turn_flows_to_cold_path_assessment` fail. Quantizing the KV cache drops it
+clear of that edge.
+
+As in Profile A, `COACH_VLLM_VRAM_FRACTION=0.0` because the LLM server is external —
+its VRAM is observed by the sampler, not pre-reserved. Hot and cold point at the same
+served model, so `models_loaded` is **4**.
+
+## Healthy readings on the M: box
+
+- `models_loaded` **4**, all `loaded`; `degradation_level` **0**
+- VRAM **3.8–4.3GB of 6.44GB** (~60–67%), under the 0.88 soft threshold
+- `live_turn_check.py` **PASS** — STT ~0.8–1.0s, LLM ~0.15–0.19s, first audio
+  **~1.2–1.5s**; generation ~67 tok/s
+- `pytest` **167 passed**, `ruff` clean, `npm run typecheck` clean
+
+## Profile B gotchas
+
+- Run with `.venv\Scripts\python.exe`, **never `uv run`** — same reason as Profile A.
+- `env.ps1` prepends `torch\lib` to PATH. CTranslate2 (faster-whisper) loads
+  cuBLAS/cuDNN at runtime and the torch wheel holds the only copy on this box;
+  without it STT fails to init on CUDA.
+- Kokoro's G2P (misaki) needs spaCy's `en_core_web_sm` and tries to `pip install` it
+  at model-load time — which fails, because a uv-created venv has no `pip`, and TTS
+  then aborts app startup. After any venv rebuild:
+  `& $env:COACH_UV pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl --python .venv\Scripts\python.exe`
+- Setting `HF_HOME` alone is **not** enough to relocate downloads. `HF_HUB_CACHE` and
+  `TRANSFORMERS_CACHE` take precedence, and if the account has persistent user-level
+  values for them, weights land there instead. `env.ps1` overrides all four
+  per-process so the user-level vars other projects rely on stay untouched.
+- The guard's degradation level is the **peak across every resource** — VRAM, GPU
+  util, RAM, CPU, and the disk holding `data_dir` — not VRAM alone. At level >= 1 all
+  cold-path work is deferred (re-queued with backoff, not dropped), so a box at 89%
+  RAM or a >88%-full drive delays assessments with the GPU completely idle. Check
+  `/stats` `resources` before blaming the code.
