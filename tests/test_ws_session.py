@@ -117,6 +117,62 @@ def test_ws_turn_streams_transcript_reply_audio_timings():
             ws.send_text(json.dumps({"type": "bye"}))
 
 
+class SlowTTS:
+    """Streams a long reply slowly, so a 'bye' can land while the turn is still
+    in flight. Counts what it actually produced."""
+
+    TOTAL = 60
+    chunks = 0
+
+    def available(self):
+        return True
+
+    async def synthesize_stream(self, text) -> AsyncIterator[bytes]:
+        import asyncio
+
+        for _ in range(self.TOTAL):
+            SlowTTS.chunks += 1
+            await asyncio.sleep(0.01)
+            yield b"\x00\x00" * 160
+
+
+def test_ws_bye_aborts_an_in_flight_turn():
+    """'bye' must be noticed *during* a reply, not only between turns.
+
+    receive() used to be awaited inline in the loop, so while a turn streamed
+    nobody was reading the socket: a learner who pressed End mid-reply left the
+    server generating LLM + TTS for a client that had already gone. A reader task
+    now drains the socket concurrently and trips a stop event the turn honours.
+    """
+    import time
+
+    SlowTTS.chunks = 0
+    with TestClient(app) as client:
+        uid = "ws" + new_id()[:8]
+        client.post("/users", json={"user_id": uid, "display_name": "WS"})
+        client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), SlowTTS())
+
+        with client.websocket_connect(f"/ws/session?user_id={uid}&mode=free&ptt=1") as ws:
+            ws.receive_json()  # session
+            _speak_a_turn(ws)
+            # Wait until audio is genuinely flowing, so 'bye' truly arrives mid-turn.
+            while _receive_within(ws).get("bytes") is None:
+                pass
+            ws.send_text(json.dumps({"type": "bye"}))
+            # Sample while the socket is STILL OPEN, and after comfortably longer
+            # than the whole reply would take (60 * 10ms). Closing the socket first
+            # would abort the turn on a failed send and make this pass even with the
+            # stop check removed — it has to be the 'bye' that stops it, not the close.
+            time.sleep(1.5)
+            observed = SlowTTS.chunks
+
+    assert observed < SlowTTS.TOTAL, (
+        f"TTS produced all {observed}/{SlowTTS.TOTAL} chunks with the socket still "
+        f"open — the turn ignored 'bye' and ran to completion for a client that had "
+        f"already left"
+    )
+
+
 def test_ws_turn_flows_to_cold_path_assessment():
     """A live turn emits UtteranceFinalized -> the cold-path worker scores it ->
     an assessment is stored (deterministic evaluators run even without the LLM)."""

@@ -9,12 +9,18 @@ Every ``end`` gets exactly one closing message — ``turn_end`` when the turn ra
 ``turn_skipped`` when the take was too short to be speech. The client re-enables its
 mic on that message, so silence would strand it.
 
+A reader task drains the socket concurrently with a running turn, so ``bye`` and
+disconnects register mid-reply rather than only between turns; the turn then unwinds
+at its next event instead of synthesizing speech for a client that has already left.
+
 Stages are pulled from app state (real models in production, fakes in tests) so the
 loop itself is model-agnostic and unit-testable.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 from dataclasses import dataclass
 
@@ -107,9 +113,33 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
     await ws.send_text(json.dumps({"type": "session", "session_id": session.session_id}))
     log.info("ws_session_started", session_id=session.session_id, user_id=user_id, mode=mode)
 
+    # A dedicated reader drains the socket even while a turn is streaming, so a
+    # 'bye' or a disconnect is noticed immediately instead of only between turns.
+    # Awaiting receive() inline meant a learner who ended the session mid-reply
+    # left the server generating LLM + TTS for a client that had already gone.
+    # Ordering is preserved: everything still reaches the loop through the queue.
+    inbox: asyncio.Queue[dict] = asyncio.Queue()
+    stop = asyncio.Event()
+
+    async def _reader() -> None:
+        try:
+            while True:
+                m = await ws.receive()
+                if m["type"] == "websocket.disconnect" or _is_bye(m):
+                    stop.set()
+                await inbox.put(m)
+                if stop.is_set():
+                    return
+        except (WebSocketDisconnect, RuntimeError):
+            # RuntimeError: receive() called once the socket is already gone.
+            stop.set()
+            await inbox.put({"type": "websocket.disconnect"})
+
+    reader = asyncio.create_task(_reader())
+
     try:
         while True:
-            msg = await ws.receive()
+            msg = await inbox.get()
             if msg["type"] == "websocket.disconnect":
                 break
 
@@ -122,7 +152,7 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                     del pending[:frame_bytes]
                     utt = segmenter.push(frame)
                     if utt:
-                        await _run_turn(ws, pipeline, ctx, utt)
+                        await _run_turn(ws, pipeline, ctx, utt, stop)
 
             elif (text := msg.get("text")) is not None:
                 try:
@@ -140,7 +170,7 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                     else:
                         utt = segmenter.flush()
                     if utt:
-                        await _run_turn(ws, pipeline, ctx, utt)
+                        await _run_turn(ws, pipeline, ctx, utt, stop)
                     else:
                         # Too short to be speech. ALWAYS answer an 'end' — the client
                         # blocks its mic until the turn closes, so staying silent here
@@ -162,6 +192,9 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        reader.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await reader
         sessions.end(session.session_id)
         ProgressService(
             users, sessions, AssessmentRepository(db)
@@ -169,29 +202,53 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
         log.info("ws_session_ended", session_id=session.session_id)
 
 
+def _is_bye(msg: dict) -> bool:
+    """True for a ``{"type": "bye"}`` control frame, ignoring anything unparseable."""
+    if (text := msg.get("text")) is None:
+        return False
+    try:
+        return json.loads(text).get("type") == "bye"
+    except (json.JSONDecodeError, AttributeError):
+        return False
+
+
 async def _run_turn(
-    ws: WebSocket, pipeline: HotPathPipeline, ctx: TurnContext, pcm: bytes
+    ws: WebSocket,
+    pipeline: HotPathPipeline,
+    ctx: TurnContext,
+    pcm: bytes,
+    stop: asyncio.Event | None = None,
 ) -> None:
     transcript = ""
     reply_parts: list[str] = []
-    async for ev in pipeline.run_turn(pcm, ctx):
-        if ev.kind == HotEventKind.FINAL:
-            transcript = ev.text or ""
-            await ws.send_text(
-                json.dumps({"type": "final", "text": transcript, **ev.meta})
-            )
-        elif ev.kind == HotEventKind.REPLY:
-            # The reply streams a sentence at a time; forward each as a partial.
-            reply_parts.append(ev.text or "")
-            await ws.send_text(
-                json.dumps({"type": "reply", "text": ev.text or "", "partial": True})
-            )
-        elif ev.kind == HotEventKind.AUDIO and ev.audio is not None:
-            await ws.send_bytes(ev.audio)
-        elif ev.kind == HotEventKind.TIMINGS and ev.timings is not None:
-            await ws.send_text(json.dumps({"type": "turn_end", "timings": ev.timings.as_dict()}))
-        elif ev.kind == HotEventKind.ERROR:
-            await ws.send_text(json.dumps({"type": "error", "detail": ev.text}))
+    # aclosing() so an early break shuts the pipeline's generator down promptly
+    # instead of leaving it for the GC to finalize.
+    async with contextlib.aclosing(pipeline.run_turn(pcm, ctx)) as stream:
+        async for ev in stream:
+            # The learner ended the session (or vanished) mid-reply — stop burning
+            # GPU on speech nobody is listening to. Checked between events, so the
+            # turn unwinds at the next sentence or audio chunk.
+            if stop is not None and stop.is_set():
+                break
+            if ev.kind == HotEventKind.FINAL:
+                transcript = ev.text or ""
+                await ws.send_text(
+                    json.dumps({"type": "final", "text": transcript, **ev.meta})
+                )
+            elif ev.kind == HotEventKind.REPLY:
+                # The reply streams a sentence at a time; forward each as a partial.
+                reply_parts.append(ev.text or "")
+                await ws.send_text(
+                    json.dumps({"type": "reply", "text": ev.text or "", "partial": True})
+                )
+            elif ev.kind == HotEventKind.AUDIO and ev.audio is not None:
+                await ws.send_bytes(ev.audio)
+            elif ev.kind == HotEventKind.TIMINGS and ev.timings is not None:
+                await ws.send_text(
+                    json.dumps({"type": "turn_end", "timings": ev.timings.as_dict()})
+                )
+            elif ev.kind == HotEventKind.ERROR:
+                await ws.send_text(json.dumps({"type": "error", "detail": ev.text}))
     # Update rolling conversation context for the next turn.
     reply = " ".join(reply_parts).strip()
     if transcript:

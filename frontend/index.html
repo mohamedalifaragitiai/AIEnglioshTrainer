@@ -360,7 +360,7 @@ function renderChips(list){$('#topicChips').innerHTML=list.map(t=>`<span class="
 $('#topic').addEventListener('input',e=>{topic=e.target.value;});
 
 // ------- push-to-talk WS (turn-based; mic is OFF while the coach speaks) -------
-let ws=null,ac=null,micStream=null,source=null,proc=null,playHead=0,currentCoach=null;
+let ws=null,ac=null,micStream=null,source=null,proc=null,playHead=0,currentCoach=null,liveSrc=[];
 let sttate='idle'; // idle | recording | busy(coach thinking/speaking)
 const TTS_RATE=24000;
 function addMsg(who,text){const e=$('#convEmpty');if(e)e.remove();
@@ -415,6 +415,7 @@ function sendTurn(){
   setState('busy');
 }
 function endSession(){
+  stopPlayback();                       // silence the coach immediately
   try{if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'bye'}));}catch{}
   try{source&&source.disconnect();proc&&proc.disconnect();}catch{}
   if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}
@@ -428,13 +429,23 @@ function ctrl(m){
     // Re-enable the mic only once the coach has finished this turn.
     setState('idle');}
   else if(m.type==='turn_skipped'){currentCoach=null;$('#turnTimings').textContent=m.detail||'too short';setState('idle');}
-  else if(m.type==='error'){addMsg('coach','⚠ '+(m.detail||'error'));currentCoach=null;setState('idle');}
+  // Cut queued speech on an error too — otherwise the coach keeps talking over
+  // the warning from audio that was already scheduled before the failure.
+  else if(m.type==='error'){stopPlayback();addMsg('coach','⚠ '+(m.detail||'error'));currentCoach=null;setState('idle');}
 }
 function to16k(input,rate){const ratio=rate/16000,n=Math.floor(input.length/ratio),out=new Int16Array(n);
   for(let i=0;i<n;i++){const s=Math.max(-1,Math.min(1,input[Math.floor(i*ratio)]));out[i]=s<0?s*0x8000:s*0x7fff;}return out.buffer;}
 function playPCM(i16){if(!ac)return;const buf=ac.createBuffer(1,i16.length,TTS_RATE),ch=buf.getChannelData(0);
   for(let i=0;i<i16.length;i++)ch[i]=i16[i]/32768;const s=ac.createBufferSource();s.buffer=buf;s.connect(ac.destination);
-  const now=ac.currentTime;if(playHead<now)playHead=now;s.start(playHead);playHead+=buf.duration;}
+  const now=ac.currentTime;if(playHead<now)playHead=now;s.start(playHead);playHead+=buf.duration;
+  // Hold a handle to every scheduled chunk. TTS streams in far faster than realtime
+  // (~1.5s to produce ~11s of speech), so almost the whole reply is queued ahead of
+  // the playhead — without these handles nothing can cut it short.
+  liveSrc.push(s);s.onended=()=>{const i=liveSrc.indexOf(s);if(i>=0)liveSrc.splice(i,1);};}
+// Cancel queued TTS and drop the scheduling cursor back to now. Called when the
+// learner ends the session: closing the socket alone does NOT silence audio that
+// the Web Audio graph has already been told to play.
+function stopPlayback(){for(const s of liveSrc){try{s.onended=null;s.stop();}catch{}}liveSrc=[];if(ac)playHead=ac.currentTime;}
 
 // ------- monitor -------
 let monTimer=null;
