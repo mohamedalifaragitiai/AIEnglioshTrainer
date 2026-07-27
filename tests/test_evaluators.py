@@ -133,3 +133,55 @@ async def test_llm_evaluator_bad_json_raises():
 
 def test_extract_json_directly():
     assert _extract_json('prefix {"a": 1} suffix') == {"a": 1}
+
+
+# A reply cut off by the token ceiling mid-``errors``. This is the observed
+# production failure ("Expecting ',' delimiter"), not hand-written malformed JSON:
+# the model was still emitting when generation stopped.
+_TRUNCATED_JSON = (
+    '{"grammar":{"score":62,"errors":[{"text":"he go","correction":"he goes",'
+    '"type":"agreement"},{"text":"i has","correction":"i have","type":"agr'
+)
+
+
+async def test_llm_evaluator_recovers_scores_from_a_truncated_reply():
+    """A reply that hit the token ceiling must not cost all five dimensions.
+
+    Before the repair pass this raised JSONDecodeError, the worker logged
+    evaluator_failed, and the assessment was stored with grammar, vocabulary,
+    listening, coherence and relevance all missing.
+    """
+    ev = LLMEvaluator(_llm_returning(_TRUNCATED_JSON))
+    out = await ev.evaluate(_utt("he go to school"), CTX)
+    got = {s.dimension: s.score for s in out.scores}
+    assert got == {"grammar": 62}, "the one complete dimension should survive"
+
+
+async def test_llm_evaluator_omits_dimensions_the_model_did_not_score():
+    """A missing dimension must be absent, never recorded as 0.
+
+    node.get("score", 0) turned a key the model simply never emitted into a
+    failing grade. The aggregate renormalizes over present dimensions, so
+    omitting costs coverage rather than inventing a score.
+    """
+    partial = json.dumps({"grammar": {"score": 80}, "vocabulary": {"score": 70}})
+    ev = LLMEvaluator(_llm_returning(partial))
+    out = await ev.evaluate(_utt("hi"), CTX)
+    assert {s.dimension for s in out.scores} == {"grammar", "vocabulary"}
+    assert all(s.score != 0 for s in out.scores)
+
+
+async def test_llm_evaluator_rejects_non_numeric_scores():
+    """Garbage in a score field is dropped, not coerced."""
+    junk = json.dumps(
+        {
+            "grammar": {"score": "high"},
+            "vocabulary": {"score": None},
+            "listening": {"score": True},
+            "coherence": {"score": 55},
+            "relevance": "not-an-object",
+        }
+    )
+    ev = LLMEvaluator(_llm_returning(junk))
+    out = await ev.evaluate(_utt("hi"), CTX)
+    assert {s.dimension: s.score for s in out.scores} == {"coherence": 55}

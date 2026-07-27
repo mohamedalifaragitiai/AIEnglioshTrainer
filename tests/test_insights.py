@@ -122,6 +122,50 @@ def test_render_pdf_has_magic(svc):
     assert payload[:5] == b"%PDF-"
 
 
+def test_next_level_line_distinguishes_no_eta_from_top_level():
+    """An unknown ETA is not the same as having no next level.
+
+    The PDF header used to require both values and otherwise print "At the top
+    level" — so a learner on level 1 of 5 whose trend was too short to date was
+    told they had finished.
+    """
+    assert reporting.next_level_line(2, 14) == "Next: level 2 in ~14 days"
+    assert reporting.next_level_line(2, None) == "Next: level 2"
+    assert reporting.next_level_line(None, None) == "At the top level"
+
+
+def test_pdf_long_correction_stays_inside_the_page(svc):
+    """Long corrections must be wrapped/ellipsized, not run off the right edge.
+
+    Truncation was a flat 118-character cap, which is width-blind in a
+    proportional font, so a long line overflowed the margin and looked cut
+    mid-word.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    long_text = (
+        "creating solutions, discussing, monitoring, gene neurons and guiding "
+        "some other teammates through the whole process end to end"
+    )
+    long_fix = (
+        "creating solutions, discussing, monitoring, generating neurons and "
+        "guiding several other teammates through the entire process"
+    )
+    data = svc.report_data("abu_ali")
+    data.feedback.corrections = [{"text": long_text, "correction": long_fix}]
+    payload = reporting.render(data, "pdf")
+    assert payload[:5] == b"%PDF-"
+
+    # Every line the renderer emits for that correction must fit the text column.
+    avail = A4[0] - 2 * (2 * cm) - 0.4 * cm
+    lines = reporting._wrap(f"{long_text}  ->  {long_fix}", "Helvetica", 9.5, avail, 2)
+    assert len(lines) > 1, "a line this long must wrap, not sit on one row"
+    for line in lines:
+        assert stringWidth(line, "Helvetica", 9.5) <= avail
+
+
 def test_generate_report_persists_and_returns(svc):
     payload, filename = svc.generate_report("abu_ali", "json")
     assert payload and filename.endswith(".json")

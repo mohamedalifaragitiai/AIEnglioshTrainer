@@ -104,6 +104,60 @@ def render_xlsx(data: ReportData) -> bytes:
     return out.getvalue()
 
 
+def _fit(s: str, font: str, size: float, avail: float) -> str:
+    """Trim to what actually fits, measured in points.
+
+    The old cap was a flat 118 characters, which is width-blind in a proportional
+    font: a long line ran past the right edge and appeared cut mid-word instead of
+    ending cleanly.
+    """
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    if stringWidth(s, font, size) <= avail:
+        return s
+    while s and stringWidth(s + "…", font, size) > avail:
+        s = s[:-1]
+    return s + "…"
+
+
+def _wrap(s: str, font: str, size: float, avail: float, max_lines: int) -> list[str]:
+    """Greedy word wrap, capped at max_lines with the last line ellipsized."""
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    lines: list[str] = []
+    line = ""
+    for word in str(s).split():
+        cand = f"{line} {word}".strip()
+        if not line or stringWidth(cand, font, size) <= avail:
+            line = cand
+            continue
+        lines.append(line)
+        line = word
+        if len(lines) == max_lines:
+            break
+    if line and len(lines) < max_lines:
+        lines.append(line)
+    if not lines:
+        return [""]
+    lines[-1] = _fit(lines[-1], font, size, avail)
+    return lines
+
+
+def next_level_line(next_level: int | None, eta_days: int | None) -> str:
+    """Header phrasing for a learner's next level.
+
+    Three cases, not two. Requiring BOTH values before saying anything meant a
+    learner on level 1 of 5 with too little trend data to estimate a date was told
+    "At the top level" — the ETA being unknown is not the same as there being no
+    next level to reach.
+    """
+    if next_level is None:
+        return "At the top level"
+    if eta_days is not None:
+        return f"Next: level {next_level} in ~{eta_days} days"
+    return f"Next: level {next_level}"
+
+
 def render_pdf(data: ReportData) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
@@ -122,9 +176,10 @@ def render_pdf(data: ReportData) -> bytes:
 
     def text(s, size=10.5, dy=0.52 * cm, bold=False, color=ink, indent=0.0):
         nonlocal y
+        font = "Helvetica-Bold" if bold else "Helvetica"
         c.setFillColorRGB(*color)
-        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
-        c.drawString(M + indent, y, str(s)[:118])
+        c.setFont(font, size)
+        c.drawString(M + indent, y, _fit(str(s), font, size, W - 2 * M - indent))
         y -= dy
 
     def heading(s):
@@ -163,9 +218,7 @@ def render_pdf(data: ReportData) -> bytes:
     text(f"{ov.display_name}", 15, 0.5 * cm, bold=True)
     text(f"Level {ov.current_level}/5 — {level_name(ov.current_level)}", 11.5, 0.5 * cm, color=teal)
     overall = round(ov.latest_overall) if ov.latest_overall is not None else "-"
-    nxt = (f"Next: level {ov.next_level} in ~{ov.estimated_days_to_next_level} days"
-           if ov.next_level is not None and ov.estimated_days_to_next_level is not None
-           else "At the top level")
+    nxt = next_level_line(ov.next_level, ov.estimated_days_to_next_level)
     text(f"Overall {overall}%   ·   Streak {ov.streak_days} days   ·   {ov.assessments_count} "
          f"assessments   ·   {nxt}", 10, 0.7 * cm, color=grey)
 
@@ -191,7 +244,12 @@ def render_pdf(data: ReportData) -> bytes:
         heading("Corrections from your latest session")
         for corr in fb.corrections[:5]:
             t, fix = corr.get("text", ""), corr.get("correction", "")
-            text(f"  ✗ {t}   →   ✓ {fix}", 9.5, 0.48 * cm)
+            # Plain ASCII arrow: the ✗ / → / ✓ glyphs are not in Helvetica's WinAnsi
+            # encoding, so they rendered as nothing and left the two phrases running
+            # together with only whitespace between them.
+            line = f"{t}  ->  {fix}" if fix else str(t)
+            for ln in _wrap(line, "Helvetica", 9.5, W - 2 * M - 0.4 * cm, 2):
+                text(ln, 9.5, 0.44 * cm, indent=0.4 * cm)
     if fb.vocabulary_suggestions:
         heading("Vocabulary to try")
         text("· " + ", ".join(fb.vocabulary_suggestions[:8]), 10, color=grey)

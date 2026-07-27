@@ -109,6 +109,20 @@
   .glabel{font-size:12.5px;color:var(--muted);font-weight:600}
   .deg{display:flex;gap:6px;align-items:center} .deg i{width:26px;height:8px;border-radius:3px;background:var(--panel2)}
   .hidden{display:none} code{background:var(--panel2);padding:1px 6px;border-radius:6px;font-size:12.5px}
+  /* End-of-session results modal */
+  .modal-back{position:fixed;inset:0;background:rgba(4,9,20,.72);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal{background:linear-gradient(180deg,var(--panel),#121b30);border:1px solid var(--line);
+    border-radius:18px;padding:30px 34px;max-width:430px;width:calc(100% - 40px);text-align:center;
+    box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .modal h3{margin:0 0 8px;font-size:19px}
+  .modal p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55}
+  .modal .actions{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .modal .primary{background:linear-gradient(135deg,var(--accent),var(--indigo));border:none;
+    color:#04121a;font-weight:700;padding:11px 20px;border-radius:11px}
+  .spinner{width:42px;height:42px;margin:6px auto 18px;border-radius:50%;
+    border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -225,6 +239,25 @@
     </div>
   </section>
 </main>
+
+<!-- Shown after End: the cold path scores the session, then hands over to the report. -->
+<div id="resultsModal" class="modal-back hidden">
+  <div class="modal">
+    <div id="rmBusy">
+      <div class="spinner"></div>
+      <h3>Processing your results…</h3>
+      <p id="rmBusyMsg">Scoring this session — grammar, vocabulary, fluency and pronunciation.</p>
+    </div>
+    <div id="rmDone" class="hidden">
+      <h3>Your results are ready</h3>
+      <p id="rmDoneMsg">This session has been scored and added to your progress.</p>
+    </div>
+    <div class="actions">
+      <button id="rmShow" class="primary hidden">Show the results report</button>
+      <button id="rmClose">Close</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const $=(s)=>document.querySelector(s);
@@ -361,6 +394,9 @@ $('#topic').addEventListener('input',e=>{topic=e.target.value;});
 
 // ------- push-to-talk WS (turn-based; mic is OFF while the coach speaks) -------
 let ws=null,ac=null,micStream=null,source=null,proc=null,playHead=0,currentCoach=null,liveSrc=[];
+// Assessment count when this session opened — the yardstick for "the cold path has
+// finished scoring this session", since scoring lands asynchronously after 'bye'.
+let baselineAssessments=0;
 let sttate='idle'; // idle | recording | busy(coach thinking/speaking)
 const TTS_RATE=24000;
 function addMsg(who,text){const e=$('#convEmpty');if(e)e.remove();
@@ -387,6 +423,8 @@ $('#endBtn').addEventListener('click',endSession);
 async function ensureSession(){
   if(ws&&ws.readyState===1)return true;
   if(!currentUser){alert('Select a learner first.');return false;}
+  try{baselineAssessments=(await api.get(`/users/${currentUser}/progress`)).assessments_count||0;}
+  catch{baselineAssessments=0;}
   try{if(!micStream)micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});}
   catch{alert('Microphone access denied.');return false;}
   if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();
@@ -419,8 +457,45 @@ function endSession(){
   try{if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'bye'}));}catch{}
   try{source&&source.disconnect();proc&&proc.disconnect();}catch{}
   if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}
-  setTimeout(()=>{if(ws)ws.close();ws=null;setState('idle');renderDashboard();},400);
+  setTimeout(()=>{if(ws)ws.close();ws=null;setState('idle');},400);
+  showResults();                        // hand over to the results modal
 }
+// End closes the conversation and puts up a processing dialog until the cold path
+// has scored the session, then offers the detailed report. Scoring is asynchronous
+// (and the guard defers it under load), so we poll for a NEW assessment rather than
+// assume one exists the moment the socket closes.
+function showResults(){
+  $('#resultsModal').classList.remove('hidden');
+  $('#rmBusy').classList.remove('hidden');
+  $('#rmDone').classList.add('hidden');
+  $('#rmShow').classList.add('hidden');
+  $('#rmDoneMsg').textContent='This session has been scored and added to your progress.';
+  pollResults();
+}
+async function pollResults(){
+  const deadline=Date.now()+30000;
+  let landed=false;
+  while(Date.now()<deadline){
+    await new Promise(r=>setTimeout(r,700));
+    let ov;try{ov=await api.get(`/users/${currentUser}/progress`);}catch{continue;}
+    if((ov.assessments_count||0)>baselineAssessments){landed=true;break;}
+  }
+  if(!landed)$('#rmDoneMsg').textContent='Scoring is taking longer than usual — assessment work is deferred while the machine is under load. Your report will fill in once it lands.';
+  $('#rmBusy').classList.add('hidden');
+  $('#rmDone').classList.remove('hidden');
+  $('#rmShow').classList.remove('hidden');
+  renderDashboard();
+}
+function clearConversation(){
+  $('#conv').innerHTML='<div class="conv-empty" id="convEmpty">Tap the microphone below and start the conversation 🎙</div>';
+  currentCoach=null;$('#turnTimings').textContent='';
+}
+$('#rmClose').addEventListener('click',()=>$('#resultsModal').classList.add('hidden'));
+$('#rmShow').addEventListener('click',()=>{
+  $('#resultsModal').classList.add('hidden');
+  clearConversation();                  // the chat is over; the report takes over
+  document.querySelector('nav button[data-tab="report"]').click();
+});
 function ctrl(m){
   if(m.type==='final'){addMsg('user',m.text||'…');currentCoach=null;}
   else if(m.type==='reply')appendCoach(m.text||'');
