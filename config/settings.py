@@ -135,6 +135,19 @@ class Settings(BaseSettings):
     # Per-dimension target score used to size gaps (85 ~ "fluent" band).
     gap_target_score: float = 85.0
 
+    # --- Auth (Phase 8) ----------------------------------------------------
+    # Bearer-token lifetime. 14 days suits a personal workstation: long enough not to
+    # nag, short enough that a stale token in a browser eventually dies.
+    auth_token_ttl_hours: int = 336
+    auth_min_password_len: int = 8
+    # Allow an existing profile that has no password (e.g. the seeded demo learner) to
+    # be claimed by setting one, keeping its history. Turn off to require fresh
+    # registration for every account.
+    auth_allow_claim: bool = True
+    # How long a freshly opened WebSocket may sit before sending its auth frame. A
+    # socket that never authenticates otherwise holds a session slot forever.
+    ws_auth_timeout_s: float = 10.0
+
     @property
     def resolved_report_dir(self) -> Path:
         return self.report_dir or (self.data_dir / "reports")

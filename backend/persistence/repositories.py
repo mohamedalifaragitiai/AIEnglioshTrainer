@@ -222,6 +222,13 @@ class UtteranceRepository:
             )
         return utt
 
+    def get(self, utterance_id: str) -> Utterance | None:
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT * FROM utterances WHERE utterance_id=?", (utterance_id,)
+            ).fetchone()
+        return Utterance(**row) if row else None
+
     def list_for_session(self, session_id: str) -> list[Utterance]:
         with self.db.connection() as con:
             rows = con.execute(
@@ -438,6 +445,86 @@ class ReportRepository:
                 (user_id, limit),
             ).fetchall()
         return [dict(r) for r in rows]
+
+
+class CredentialRepository:
+    """Login credentials, one row per user. Absent row = profile not yet claimed."""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def get(self, user_id: str) -> dict | None:
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT * FROM credentials WHERE user_id=?", (user_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def exists(self, user_id: str) -> bool:
+        return self.get(user_id) is not None
+
+    def set(self, user_id: str, algo: str, salt: str, password_hash: str) -> None:
+        """Create or replace the credential (used by register, claim and password change)."""
+        now = now_iso()
+        with self.db.connection() as con:
+            con.execute(
+                "INSERT INTO credentials(user_id, algo, salt, password_hash, created_at,"
+                " updated_at) VALUES (?,?,?,?,?,?)"
+                " ON CONFLICT(user_id) DO UPDATE SET algo=excluded.algo, salt=excluded.salt,"
+                " password_hash=excluded.password_hash, updated_at=excluded.updated_at",
+                (user_id, algo, salt, password_hash, now, now),
+            )
+
+
+class AuthTokenRepository:
+    """Bearer tokens, stored as SHA-256 hashes only."""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def add(self, token_hash: str, user_id: str, expires_at: str, label: str | None = None) -> None:
+        with self.db.connection() as con:
+            con.execute(
+                "INSERT INTO auth_tokens(token_hash, user_id, issued_at, expires_at, label)"
+                " VALUES (?,?,?,?,?)",
+                (token_hash, user_id, now_iso(), expires_at, label),
+            )
+
+    def resolve(self, token_hash: str, *, now: str) -> str | None:
+        """Return the user_id for a live token, or None if unknown/revoked/expired."""
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT user_id FROM auth_tokens WHERE token_hash=? AND revoked_at IS NULL"
+                " AND expires_at > ?",
+                (token_hash, now),
+            ).fetchone()
+        return row["user_id"] if row else None
+
+    def revoke(self, token_hash: str) -> bool:
+        with self.db.connection() as con:
+            cur = con.execute(
+                "UPDATE auth_tokens SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL",
+                (now_iso(), token_hash),
+            )
+        return cur.rowcount > 0
+
+    def revoke_all_for_user(self, user_id: str) -> int:
+        """Log out everywhere — used on password change."""
+        with self.db.connection() as con:
+            cur = con.execute(
+                "UPDATE auth_tokens SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
+                (now_iso(), user_id),
+            )
+        return cur.rowcount
+
+    def purge_expired(self, *, now: str) -> int:
+        """Housekeeping: drop rows that can never authenticate again."""
+        with self.db.connection() as con:
+            cur = con.execute(
+                "DELETE FROM auth_tokens WHERE expires_at <= ? OR revoked_at IS NOT NULL",
+                (now,),
+            )
+        return cur.rowcount
 
 
 def is_unique_violation(exc: Exception) -> bool:

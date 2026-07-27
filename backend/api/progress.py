@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from backend.api.deps import Repositories, get_progress, get_repos
+from backend.api.deps import Repositories, get_progress, get_repos, owned_user_id
 from backend.coldpath.scoring import DIMENSIONS
 from backend.domain.models import ProgressOverview, SkillPoint
 from backend.persistence.progress import ProgressService
 
-router = APIRouter(prefix="/users/{user_id}/progress", tags=["progress"])
+# Every route here reads one learner's private history: the router itself is gated.
+router = APIRouter(
+    prefix="/users/{user_id}/progress",
+    tags=["progress"],
+    dependencies=[Depends(owned_user_id)],
+)
 
 
 @router.get("", response_model=ProgressOverview)

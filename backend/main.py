@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse
 from starlette.websockets import WebSocket
 
 from backend.api import assessments as assessments_router
+from backend.api import auth as auth_router
 from backend.api import dev as dev_router
 from backend.api import insights as insights_router
 from backend.api import models as models_router
@@ -189,6 +190,7 @@ async def ws_session_endpoint(websocket: WebSocket) -> None:
 
 
 # Per-user profiles, sessions/assessments, and progress queries.
+app.include_router(auth_router.router)
 app.include_router(users_router.router)
 app.include_router(sessions_router.router)
 app.include_router(progress_router.router)

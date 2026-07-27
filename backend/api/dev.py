@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from backend.api.deps import Repositories, get_repos
+from backend.api.deps import Repositories, get_repos, owned_user_id
 from backend.domain.models import ProgressOverview
 from backend.persistence.demo import seed_demo_history
 from backend.persistence.progress import ProgressService
@@ -12,7 +12,11 @@ from backend.persistence.progress import ProgressService
 router = APIRouter(prefix="/dev", tags=["dev"])
 
 
-@router.post("/users/{user_id}/seed-demo", response_model=ProgressOverview)
+@router.post(
+    "/users/{user_id}/seed-demo",
+    response_model=ProgressOverview,
+    dependencies=[Depends(owned_user_id)],
+)
 def seed_demo(user_id: str, repos: Repositories = Depends(get_repos)) -> ProgressOverview:
     """Populate a user with a few days of demo assessments (idempotent-ish: only
     seeds when the user has no assessments yet) so the dashboard has data."""

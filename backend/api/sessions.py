@@ -10,7 +10,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from backend.api.deps import Repositories, get_progress, get_repos
+from backend.api.deps import (
+    Repositories,
+    get_progress,
+    get_repos,
+    owned_session_id,
+    owned_user_id,
+)
 from backend.coldpath.scoring import (
     DIMENSIONS,
     SCORING_MODEL_VERSION,
@@ -42,6 +48,7 @@ class CreateSessionRequest(BaseModel):
     "/users/{user_id}/sessions",
     response_model=Session,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(owned_user_id)],
 )
 def create_session(
     user_id: str,
@@ -53,14 +60,22 @@ def create_session(
     return repos.sessions.create(user_id, mode=body.mode, difficulty=body.difficulty)
 
 
-@router.get("/users/{user_id}/sessions", response_model=list[Session])
+@router.get(
+    "/users/{user_id}/sessions",
+    response_model=list[Session],
+    dependencies=[Depends(owned_user_id)],
+)
 def list_sessions(user_id: str, repos: Repositories = Depends(get_repos)) -> list[Session]:
     if not repos.users.exists(user_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"user {user_id!r} not found")
     return repos.sessions.list_for_user(user_id)
 
 
-@router.get("/sessions/{session_id}", response_model=Session)
+@router.get(
+    "/sessions/{session_id}",
+    response_model=Session,
+    dependencies=[Depends(owned_session_id)],
+)
 def get_session(session_id: str, repos: Repositories = Depends(get_repos)) -> Session:
     session = repos.sessions.get(session_id)
     if session is None:
@@ -68,7 +83,11 @@ def get_session(session_id: str, repos: Repositories = Depends(get_repos)) -> Se
     return session
 
 
-@router.post("/sessions/{session_id}/end", response_model=Session)
+@router.post(
+    "/sessions/{session_id}/end",
+    response_model=Session,
+    dependencies=[Depends(owned_session_id)],
+)
 def end_session(
     session_id: str,
     repos: Repositories = Depends(get_repos),
@@ -99,6 +118,7 @@ class AddUtteranceRequest(BaseModel):
     "/sessions/{session_id}/utterances",
     response_model=Utterance,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(owned_session_id)],
 )
 def add_utterance(
     session_id: str, body: AddUtteranceRequest, repos: Repositories = Depends(get_repos)
@@ -118,7 +138,11 @@ def add_utterance(
     )
 
 
-@router.get("/sessions/{session_id}/utterances", response_model=list[Utterance])
+@router.get(
+    "/sessions/{session_id}/utterances",
+    response_model=list[Utterance],
+    dependencies=[Depends(owned_session_id)],
+)
 def list_utterances(session_id: str, repos: Repositories = Depends(get_repos)) -> list[Utterance]:
     if repos.sessions.get(session_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
@@ -140,6 +164,7 @@ class RecordAssessmentRequest(BaseModel):
     "/sessions/{session_id}/assessments",
     response_model=Assessment,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(owned_session_id)],
 )
 def record_assessment(
     session_id: str,

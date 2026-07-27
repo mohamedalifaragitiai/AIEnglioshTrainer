@@ -101,6 +101,41 @@ def feed_steady(guard: ResourceGuard, sampler: FakeSampler, vram: float) -> None
         guard.feed(sampler.sample())
 
 
+# --- auth helpers for API tests --------------------------------------------
+#
+# Every user-scoped route is gated on a bearer token for that same user, so API tests
+# register an account and pass its header. `register_user` returns (user_id, headers).
+
+
+def register_user(
+    client,
+    user_id: str,
+    *,
+    display_name: str | None = None,
+    password: str = "test password 1",
+    current_level: int = 0,
+) -> tuple[str, dict[str, str]]:
+    """Register a learner through the real endpoint and return auth headers for them."""
+    r = client.post(
+        "/auth/register",
+        json={
+            "user_id": user_id,
+            "display_name": display_name or user_id,
+            "password": password,
+            "current_level": current_level,
+        },
+    )
+    assert r.status_code == 201, r.text
+    return user_id, {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def auth_headers(client, user_id: str, password: str = "test password 1") -> dict[str, str]:
+    """Headers for an existing account (logs in fresh)."""
+    r = client.post("/auth/login", json={"user_id": user_id, "password": password})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
 # --- persistence fixtures --------------------------------------------------
 
 

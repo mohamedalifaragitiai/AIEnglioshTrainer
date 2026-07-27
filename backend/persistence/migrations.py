@@ -97,9 +97,35 @@ CREATE TABLE IF NOT EXISTS achievements (
 );
 """
 
+_SCHEMA_002 = """
+-- Login credentials, kept in their own table so `users` stays a clean profile
+-- record and a profile can exist before it is claimed with a password.
+CREATE TABLE IF NOT EXISTS credentials (
+  user_id       TEXT PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+  algo          TEXT NOT NULL,
+  salt          TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+
+-- Opaque bearer tokens. Only the SHA-256 of the token is stored, so the database
+-- never holds anything that can be replayed. Logout stamps revoked_at.
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  issued_at  TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  label      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tokens_user ON auth_tokens(user_id, expires_at);
+"""
+
 # (version, description, sql) — append new tuples; never rewrite an applied one.
 MIGRATIONS: list[tuple[int, str, str]] = [
     (1, "initial schema", _SCHEMA_001),
+    (2, "auth: credentials + bearer tokens", _SCHEMA_002),
 ]
 
 

@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
+from backend.api.deps import owned_user_id
 from backend.coldpath.insights import InsightsService
 from backend.coldpath.reporting import REPORT_FORMATS, content_type
 from backend.domain.models import Feedback, GapItem, ImprovementItem, Plan
 
-router = APIRouter(prefix="/users/{user_id}", tags=["insights"])
+# Gaps, plans, feedback and reports are all private to one learner.
+router = APIRouter(
+    prefix="/users/{user_id}",
+    tags=["insights"],
+    dependencies=[Depends(owned_user_id)],
+)
 
 
 def get_insights(request: Request) -> InsightsService:
