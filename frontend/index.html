@@ -469,14 +469,21 @@ function showResults(){
   $('#rmBusy').classList.remove('hidden');
   $('#rmDone').classList.add('hidden');
   $('#rmShow').classList.add('hidden');
+  $('#rmBusyMsg').textContent='Scoring this session — grammar, vocabulary, fluency and pronunciation.';
   $('#rmDoneMsg').textContent='This session has been scored and added to your progress.';
   pollResults();
 }
+// Wait past COACH_COLDPATH_MAX_DEFER_S (60s): under load the guard holds a job in
+// the re-queue loop for up to that budget before admitting it, so a 30s window
+// timed out while the assessment was still legitimately on its way.
+const RESULTS_WAIT_MS=90000;
 async function pollResults(){
-  const deadline=Date.now()+30000;
+  const t0=Date.now(),deadline=t0+RESULTS_WAIT_MS;
   let landed=false;
   while(Date.now()<deadline){
     await new Promise(r=>setTimeout(r,700));
+    // A spinner alone is indistinguishable from a hang; say what's happening.
+    if(Date.now()-t0>12000)$('#rmBusyMsg').textContent='Still scoring — assessment work waits its turn while the machine is busy. This can take up to a minute.';
     let ov;try{ov=await api.get(`/users/${currentUser}/progress`);}catch{continue;}
     if((ov.assessments_count||0)>baselineAssessments){landed=true;break;}
   }

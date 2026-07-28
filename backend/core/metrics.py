@@ -54,6 +54,12 @@ jobs_deferred_total = Counter(
     registry=REGISTRY,
 )
 
+jobs_starved_total = Counter(
+    "jobs_starved_total",
+    "Cold-path jobs admitted after out-waiting the deferral budget.",
+    registry=REGISTRY,
+)
+
 sessions_rejected_total = Counter(
     "sessions_rejected_total",
     "New sessions rejected by the guard at the ceiling.",

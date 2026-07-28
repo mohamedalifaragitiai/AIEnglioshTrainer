@@ -113,6 +113,54 @@ async def test_process_once_defers_under_pressure(
     assert not assessments.exists_for_utterance(u.utterance_id)
 
 
+async def test_process_once_runs_a_job_that_outwaited_the_defer_budget(
+    guard, sampler, users, sessions, utterances, assessments, evaluator_outputs, settings
+):
+    """Level 1 defers a fresh job forever on a box that never de-escalates; a job
+    that has already waited out the budget has to run instead."""
+    feed_steady(guard, sampler, 0.89)  # level 1 -> cold work paused
+    s, u = _prep(users, sessions, utterances)
+    w = _worker(guard, users, sessions, utterances, assessments, evaluator_outputs,
+                [FakeEvaluator("f", {"fluency": 70})])
+    ev = _event(s.session_id, u.utterance_id)
+    assert await w.process_once(ev) == "deferred"
+    assert await w.process_once(ev, waited_s=settings.coldpath_max_defer_s) == "processed"
+    assert assessments.exists_for_utterance(u.utterance_id)
+
+
+async def test_background_loop_ages_a_deferred_job_out_of_the_requeue_loop(
+    sampler, users, sessions, utterances, assessments, evaluator_outputs
+):
+    """The wait must accumulate ACROSS re-queues. If each lap restarted the clock
+    the job would circle the loop forever and the learner would never be scored."""
+    from backend.core.resource_guard import ResourceGuard
+    from config.settings import Settings
+
+    guard = ResourceGuard(
+        sampler=sampler,
+        settings=Settings(hysteresis_margin=0.06, ladder_l1=0.88, coldpath_max_defer_s=1.0),
+    )
+    feed_steady(guard, sampler, 0.89)  # level 1 for the whole test — never clears
+    bus = EventBus()
+    s, u = _prep(users, sessions, utterances)
+    w = _worker(guard, users, sessions, utterances, assessments, evaluator_outputs,
+                [FakeEvaluator("f", {"fluency": 65})], bus=bus)
+    w.backoff_s = 0.05  # lots of laps, so a reset clock would be caught
+    w.attach(bus)
+    await w.start()
+    try:
+        bus.publish(_event(s.session_id, u.utterance_id))
+        await asyncio.sleep(0.3)
+        assert not assessments.exists_for_utterance(u.utterance_id)  # still deferring
+        for _ in range(60):  # up to ~3s: past the 1s budget
+            await asyncio.sleep(0.05)
+            if assessments.exists_for_utterance(u.utterance_id):
+                break
+        assert assessments.exists_for_utterance(u.utterance_id)
+    finally:
+        await w.stop()
+
+
 async def test_failed_evaluator_isolated(
     guard, sampler, users, sessions, utterances, assessments, evaluator_outputs
 ):

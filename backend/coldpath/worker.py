@@ -5,6 +5,9 @@ into a versioned Assessment, updates the profile, and emits AssessmentReady. Eve
 job is **deferrable**: under guard pressure the guard returns ``defer`` and the job
 is re-queued with jittered backoff, draining when headroom returns. Jobs are
 **idempotent** — an utterance already scored is skipped — so retries are safe.
+A job carries the time it first entered the queue, so the guard can tell a job that
+just arrived from one that has been going round the re-queue loop; past
+``coldpath_max_defer_s`` the guard admits it rather than deferring forever.
 
 ``process_once`` runs one job deterministically (used directly by tests); the
 background loop just pumps the queue and honors deferrals.
@@ -14,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from time import perf_counter
+from time import monotonic, perf_counter
 
 from backend.coldpath.evaluators.base import (
     EvaluationContext,
@@ -61,7 +64,9 @@ class ColdPathWorker:
         self.assessments = assessments
         self.bus = event_bus
         self.backoff_s = backoff_s
-        self._queue: asyncio.Queue[UtteranceFinalized] = asyncio.Queue()
+        # (event, monotonic time it first entered the queue) — the second element
+        # survives re-queues so a starved job can be told apart from a fresh one.
+        self._queue: asyncio.Queue[tuple[UtteranceFinalized, float]] = asyncio.Queue()
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
 
@@ -71,8 +76,8 @@ class ColdPathWorker:
         self.bus = self.bus or bus
         bus.subscribe(UtteranceFinalized, self._enqueue)
 
-    async def _enqueue(self, ev: UtteranceFinalized) -> None:
-        self._queue.put_nowait(ev)
+    async def _enqueue(self, ev: UtteranceFinalized, first_seen: float | None = None) -> None:
+        self._queue.put_nowait((ev, monotonic() if first_seen is None else first_seen))
         metrics.coldpath_queue_depth.set(self._queue.qsize())
 
     async def start(self) -> None:
@@ -94,25 +99,28 @@ class ColdPathWorker:
     async def _run(self) -> None:
         while not self._stop.is_set():
             try:
-                ev = await asyncio.wait_for(self._queue.get(), timeout=0.5)
+                ev, first_seen = await asyncio.wait_for(self._queue.get(), timeout=0.5)
             except TimeoutError:
                 continue
             metrics.coldpath_queue_depth.set(self._queue.qsize())
-            status = await self.process_once(ev)
+            status = await self.process_once(ev, waited_s=monotonic() - first_seen)
             if status == "deferred":
                 # Back off with jitter, then re-queue — cold work is deferrable.
+                # Keep the ORIGINAL first_seen: the wait has to accumulate across
+                # re-queues, otherwise the deferral budget resets every lap and the
+                # job never ages out of the loop.
                 await asyncio.sleep(self.backoff_s * (1.0 + random.random()))
-                await self._enqueue(ev)
+                await self._enqueue(ev, first_seen)
 
     # --- one job -----------------------------------------------------------
 
-    async def process_once(self, ev: UtteranceFinalized) -> str:
+    async def process_once(self, ev: UtteranceFinalized, waited_s: float = 0.0) -> str:
         if self.assessments.exists_for_utterance(ev.utterance_id):
             metrics.coldpath_jobs_total.labels("skipped").inc()
             return "skipped"
 
         adm = await self.guard.acquire(
-            ResourceEstimate(gpu_util_frac=0.4, vram_gb=0.0), "cold"
+            ResourceEstimate(gpu_util_frac=0.4, vram_gb=0.0, waited_s=waited_s), "cold"
         )
         if adm.kind == "defer":
             metrics.coldpath_jobs_total.labels("deferred").inc()

@@ -78,6 +78,9 @@ class ResourceEstimate:
     is_new_session: bool = False  # gates Level-4 rejection on the hot path
     llm_max_tokens: int | None = None  # baseline the guard may trim under pressure
     llm_context: int | None = None
+    # How long this (cold) job has already spent deferred. Past the configured
+    # budget the guard stops re-deferring it — see ``acquire``.
+    waited_s: float = 0.0
 
 
 AdmissionKind = Literal["full", "degraded", "defer", "reject"]
@@ -370,12 +373,31 @@ class ResourceGuard:
         would_cross = self._crosses(proj, self.ceiling)
 
         if path == "cold":
-            if level >= 1:
+            if level >= 1 or would_cross:
+                # Deferral is only ever a *delay*. On a host whose idle peak sits
+                # above ladder_l1 the level never de-escalates, so an unbounded
+                # defer is a silent drop: the job re-queues forever and the learner
+                # never gets scored. Once a job has out-waited the budget, admit it
+                # — but never through the hard ceiling, which is what actually
+                # protects the box from freezing.
+                starved = need.waited_s >= self._settings.coldpath_max_defer_s
+                if starved and not would_cross:
+                    metrics.jobs_starved_total.inc()
+                    log.info(
+                        "coldpath_starvation_admit",
+                        waited_s=round(need.waited_s, 1),
+                        level=level,
+                    )
+                    return Admission.degraded(
+                        {}, f"admitted after {need.waited_s:.0f}s deferred", level
+                    )
                 metrics.jobs_deferred_total.inc()
-                return Admission.defer(f"degradation level {level} — cold work paused", level)
-            if would_cross:
-                metrics.jobs_deferred_total.inc()
-                return Admission.defer("would cross ceiling", level)
+                reason = (
+                    "would cross ceiling"
+                    if would_cross
+                    else f"degradation level {level} — cold work paused"
+                )
+                return Admission.defer(reason, level)
             return Admission.full(level)
 
         # --- hot path ---

@@ -127,6 +127,41 @@ async def test_cold_deferred_when_op_would_cross_ceiling(guard, sampler):
     assert adm.kind == "defer"
 
 
+# --- anti-starvation: deferral is a delay, never a silent drop --------------
+
+
+async def test_cold_admitted_once_it_outwaits_the_defer_budget(guard, sampler, settings):
+    """A host whose *idle* peak sits above ladder_l1 never de-escalates, so an
+    unbounded defer means the job is never scored. Past the budget it must run."""
+    feed_steady(guard, sampler, 0.89)  # level 1, and it will stay there
+    fresh = await guard.acquire(ResourceEstimate(vram_gb=1.0), "cold")
+    assert fresh.kind == "defer"
+
+    starved = await guard.acquire(
+        ResourceEstimate(vram_gb=1.0, waited_s=settings.coldpath_max_defer_s), "cold"
+    )
+    assert starved.allowed
+    assert "deferred" in starved.reason
+
+
+async def test_starved_cold_job_still_stops_at_the_hard_ceiling(guard, sampler):
+    """Out-waiting the soft ladder must not buy passage through the 96% ceiling —
+    that is the freeze protection, not a load-shedding preference."""
+    feed_steady(guard, sampler, 0.80)
+    adm = await guard.acquire(
+        ResourceEstimate(vram_gb=4.0, waited_s=10_000.0), "cold"  # would project to 1.05
+    )
+    assert adm.kind == "defer"
+
+
+async def test_cold_defer_budget_is_not_reached_early(guard, sampler, settings):
+    feed_steady(guard, sampler, 0.89)
+    adm = await guard.acquire(
+        ResourceEstimate(vram_gb=1.0, waited_s=settings.coldpath_max_defer_s - 0.1), "cold"
+    )
+    assert adm.kind == "defer"
+
+
 # --- admission control: hot path -------------------------------------------
 
 

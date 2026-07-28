@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     # below the level's entry threshold, so the ladder doesn't flap.
     hysteresis_margin: float = Field(default=0.06, ge=0.0, le=0.5)
 
+    # Anti-starvation budget for cold work, in seconds. A deferred job is re-queued,
+    # so on a host whose *baseline* peak sits above ladder_l1 the level never
+    # de-escalates and "deferred" silently means "never scored". Once a job has been
+    # waiting this long the guard admits it anyway — the hard ceiling still applies,
+    # so the freeze protection is intact; only the soft ladder is out-waited.
+    coldpath_max_defer_s: float = Field(default=60.0, ge=1.0)
+
     # Degradation-ladder entry thresholds (peak usage ratio across resources).
     # L1 = pause cold jobs, L2 = trim LLM ctx/tokens, L3 = shrink STT/TTS,
     # L4 = reject new sessions. Kept as settings so they can be tuned per host.
