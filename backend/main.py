@@ -204,5 +204,12 @@ _FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
 
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
-    """Serve the built-in single-page UI (dashboard + live practice)."""
-    return FileResponse(_FRONTEND)
+    """Serve the built-in single-page UI (dashboard + live practice).
+
+    ``no-cache`` means "revalidate", not "don't store": the ETag still makes the
+    common case a 304. Without it the browser applies *heuristic* freshness and
+    can serve a stale shell for hours without ever asking — and since the whole
+    UI (markup, CSS and script) is this one file, that silently hides every
+    frontend fix behind a hard reload the user has no reason to think of doing.
+    """
+    return FileResponse(_FRONTEND, headers={"Cache-Control": "no-cache"})

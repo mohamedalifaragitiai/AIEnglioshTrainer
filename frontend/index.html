@@ -108,7 +108,11 @@
   .gtxt .p{font-size:22px;font-weight:800} .gtxt .u{font-size:11px;color:var(--muted)}
   .glabel{font-size:12.5px;color:var(--muted);font-weight:600}
   .deg{display:flex;gap:6px;align-items:center} .deg i{width:26px;height:8px;border-radius:3px;background:var(--panel2)}
-  .hidden{display:none} code{background:var(--panel2);padding:1px 6px;border-radius:6px;font-size:12.5px}
+  /* !important because this utility has to beat any component class that sets its
+     own display. .modal-back sets display:flex at equal specificity and is declared
+     later, so plain display:none lost — the results modal was on screen from page
+     load and Close could not dismiss it. */
+  .hidden{display:none!important} code{background:var(--panel2);padding:1px 6px;border-radius:6px;font-size:12.5px}
   /* End-of-session results modal */
   .modal-back{position:fixed;inset:0;background:rgba(4,9,20,.72);backdrop-filter:blur(3px);
     display:flex;align-items:center;justify-content:center;z-index:50}
@@ -249,7 +253,7 @@
       <p id="rmBusyMsg">Scoring this session — grammar, vocabulary, fluency and pronunciation.</p>
     </div>
     <div id="rmDone" class="hidden">
-      <h3>Your results are ready</h3>
+      <h3 id="rmDoneTitle">Your results are ready</h3>
       <p id="rmDoneMsg">This session has been scored and added to your progress.</p>
     </div>
     <div class="actions">
@@ -468,8 +472,12 @@ function showResults(){
   $('#resultsModal').classList.remove('hidden');
   $('#rmBusy').classList.remove('hidden');
   $('#rmDone').classList.add('hidden');
-  $('#rmShow').classList.add('hidden');
+  // The report is readable whether or not this session has been scored yet, so
+  // the way through is offered from the start. Gating it on the poll turned a
+  // slow score into a dead end: a spinner, a Close button, and no way forward.
+  $('#rmShow').classList.remove('hidden');
   $('#rmBusyMsg').textContent='Scoring this session — grammar, vocabulary, fluency and pronunciation.';
+  $('#rmDoneTitle').textContent='Your results are ready';
   $('#rmDoneMsg').textContent='This session has been scored and added to your progress.';
   pollResults();
 }
@@ -482,12 +490,20 @@ async function pollResults(){
   let landed=false;
   while(Date.now()<deadline){
     await new Promise(r=>setTimeout(r,700));
+    // Dismissed: stop polling. Otherwise Close leaves a request every 700ms for
+    // the rest of the window against a dialog nobody is looking at.
+    if($('#resultsModal').classList.contains('hidden'))return;
     // A spinner alone is indistinguishable from a hang; say what's happening.
     if(Date.now()-t0>12000)$('#rmBusyMsg').textContent='Still scoring — assessment work waits its turn while the machine is busy. This can take up to a minute.';
     let ov;try{ov=await api.get(`/users/${currentUser}/progress`);}catch{continue;}
     if((ov.assessments_count||0)>baselineAssessments){landed=true;break;}
   }
-  if(!landed)$('#rmDoneMsg').textContent='Scoring is taking longer than usual — assessment work is deferred while the machine is under load. Your report will fill in once it lands.';
+  if(!landed){
+    // Don't announce results that haven't arrived — the heading has to agree
+    // with the body, or the dialog reads as ready when it plainly isn't.
+    $('#rmDoneTitle').textContent='Still scoring';
+    $('#rmDoneMsg').textContent='Scoring is taking longer than usual — assessment work is deferred while the machine is under load. Your report will fill in once it lands.';
+  }
   $('#rmBusy').classList.add('hidden');
   $('#rmDone').classList.remove('hidden');
   $('#rmShow').classList.remove('hidden');
