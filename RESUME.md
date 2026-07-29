@@ -58,6 +58,17 @@ level 0. First audio lands in roughly 0.7–3.3s depending on reply length.
 > vLLM is external, so its VRAM is observed by the guard's sampler rather than
 > pre-reserved.
 
+## Accounts
+
+Signup/login exist (`/auth/*`, plus a screen in both UIs) but enforcement is
+**off** unless `COACH_AUTH_REQUIRED=true` is in `.env` — with it off nothing
+changes and every client stays anonymous, which is why the start scripts above
+need no token. If you turn it on, create the account *first* (the seeded
+`abu_ali` has no password; signing up with that id claims the profile and keeps
+its history), or the UI will hold you at a sign-in screen you cannot pass.
+`live_turn_check.py` connects anonymously and will fail with close code 4401
+until it is given a token. See the README's *Accounts* section.
+
 ## Tests & CI
 
 The whole suite is fast (~15s) and must stay that way:

@@ -22,6 +22,12 @@ os.environ["COACH_REPORT_DIR"] = str(_TEST_DB_DIR / "reports")
 os.environ["COACH_LOAD_MODELS"] = "false"
 os.environ["COACH_VLLM_BASE_URL"] = "http://127.0.0.1:59999"
 os.environ["COACH_VLLM_VRAM_FRACTION"] = "0.68"
+# Auth stays off by default so every pre-auth test still exercises the anonymous
+# API; test_auth.py flips it per test. PBKDF2 at the production 240k rounds would
+# add seconds per signup and blow the ~15s suite budget — 1k is plenty to prove
+# the hashing round-trips.
+os.environ["COACH_AUTH_REQUIRED"] = "false"
+os.environ["COACH_AUTH_HASH_ITERATIONS"] = "1000"
 
 import pytest  # noqa: E402
 

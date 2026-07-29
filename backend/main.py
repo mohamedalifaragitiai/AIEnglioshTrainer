@@ -17,10 +17,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.websockets import WebSocket
 
 from backend.api import assessments as assessments_router
+from backend.api import auth as auth_router
 from backend.api import dev as dev_router
 from backend.api import insights as insights_router
 from backend.api import models as models_router
@@ -28,6 +29,7 @@ from backend.api import ops as ops_router
 from backend.api import progress as progress_router
 from backend.api import sessions as sessions_router
 from backend.api import users as users_router
+from backend.api.deps import request_token, resolve_token
 from backend.coldpath.factory import build_worker
 from backend.core.event_bus import EventBus
 from backend.core.logging import configure_logging, get_logger
@@ -181,12 +183,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Paths that stay open when COACH_AUTH_REQUIRED is on. "/" is on the list on
+# purpose: the served UI *is* the login screen, so gating it would leave nowhere
+# to sign in. It ships no data of its own — every figure on it comes from an API
+# call that is gated.
+_OPEN_PATHS = ("/auth", "/healthz", "/metrics", "/guard", "/docs", "/redoc", "/openapi.json")
+
+
+def _path_owner(path: str) -> str | None:
+    """The learner a ``/users/<id>/...`` path belongs to, if any."""
+    parts = [p for p in path.split("/") if p]
+    return parts[1] if len(parts) >= 2 and parts[0] == "users" else None
+
+
+@app.middleware("http")
+async def enforce_auth(request, call_next):
+    """Gate the data API when auth is enforced.
+
+    One middleware rather than a dependency on each router: enforcement has to
+    hold for every current and future data route, and the easiest way to get
+    that wrong is to add a router and forget the dependency.
+
+    WebSockets do not pass through here (Starlette runs HTTP middleware only);
+    ``/ws/session`` checks its own token.
+    """
+    if not settings.auth_required or request.method == "OPTIONS":
+        return await call_next(request)
+
+    path = request.url.path
+    if path == "/" or path.startswith("/favicon") or path.startswith(_OPEN_PATHS):
+        return await call_next(request)
+
+    user_id = resolve_token(request.app.state.db, request_token(request, settings))
+    if user_id is None:
+        return JSONResponse({"detail": "authentication required"}, status_code=401)
+
+    owner = _path_owner(path)
+    if owner is not None and owner != user_id:
+        return JSONResponse({"detail": "not your profile"}, status_code=403)
+    if path.rstrip("/") == "/users" and request.method in ("POST", "DELETE"):
+        return JSONResponse(
+            {"detail": "accounts are created through /auth/signup"}, status_code=403
+        )
+
+    # Hand the resolved identity down so routes don't re-verify the token.
+    request.state.user_id = user_id
+    return await call_next(request)
+
 
 @app.websocket("/ws/session")
 async def ws_session_endpoint(websocket: WebSocket) -> None:
     """Live speaking loop: stream PCM16 audio in, get transcript/reply/audio out."""
     await handle_ws_session(websocket, settings)
 
+
+# Signup/login. Registered first and always open — the gate cannot be behind itself.
+app.include_router(auth_router.router)
 
 # Per-user profiles, sessions/assessments, and progress queries.
 app.include_router(users_router.router)

@@ -38,6 +38,22 @@ class Settings(BaseSettings):
     # string via COACH_CORS_ORIGINS.
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
+    # --- Auth (signup / login) ---------------------------------------------
+    # OFF by default. The system was built single-learner and every existing
+    # client — both UIs, live_turn_check.py, the test suite — calls the API
+    # anonymously; flipping this on without warning would strand all of them.
+    # Set COACH_AUTH_REQUIRED=true and the data routers plus /ws/session start
+    # rejecting callers without a session token, and each learner may only read
+    # their own profile. Signup/login/logout work either way.
+    auth_required: bool = False
+    auth_session_ttl_hours: int = Field(default=720, ge=1)  # 30 days
+    auth_min_password_length: int = Field(default=8, ge=4)
+    # PBKDF2-HMAC-SHA256 rounds. Stdlib on purpose: bcrypt/argon2 would each be a
+    # new host-specific wheel, and the golden rules keep this env to uv.lock.
+    # Tests lower it (hashing at full cost would blow the ~15s suite budget).
+    auth_hash_iterations: int = Field(default=240_000, ge=1_000)
+    auth_cookie_name: str = "coach_session"
+
     # --- Resource governance (the 96% ceiling) -----------------------------
     # Hard per-resource ceiling. Crossing it sustained risks a machine freeze.
     resource_ceiling: float = Field(default=0.96, ge=0.50, le=0.999)

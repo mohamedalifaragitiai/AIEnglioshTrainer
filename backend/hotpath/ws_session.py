@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from backend.api.deps import resolve_token
 from backend.core.event_bus import EventBus
 from backend.core.logging import bind_correlation_id, get_logger
 from backend.core.resource_guard import ResourceGuard
@@ -75,6 +76,25 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
     utterances = UtteranceRepository(db)
 
     await ws.accept()
+
+    # A browser cannot set headers on a WebSocket handshake, so the token rides
+    # in the query string (same-origin clients may lean on the cookie instead).
+    # The token wins over ?user_id= — otherwise the parameter alone would still
+    # be enough to practise as someone else.
+    if settings.auth_required:
+        token = ws.query_params.get("token") or ws.cookies.get(settings.auth_cookie_name)
+        authenticated = resolve_token(db, token)
+        if authenticated is None:
+            await ws.send_text(
+                json.dumps({"type": "error", "detail": "authentication required"})
+            )
+            await ws.close(code=4401)
+            return
+        if user_id and user_id != authenticated:
+            await ws.send_text(json.dumps({"type": "error", "detail": "not your profile"}))
+            await ws.close(code=4403)
+            return
+        user_id = authenticated
 
     if not users.exists(user_id):
         await ws.send_text(json.dumps({"type": "error", "detail": f"unknown user {user_id!r}"}))

@@ -8,8 +8,19 @@ import { useUser } from "@/app/user-context";
 import { LEVEL_NAMES } from "@/lib/types";
 
 export function Header() {
-  const { users, currentUser, currentLevel, setCurrentUser, refresh, modelsLoaded } = useUser();
+  const {
+    users,
+    currentUser,
+    currentLevel,
+    setCurrentUser,
+    refresh,
+    modelsLoaded,
+    authRequired,
+    signedInAs,
+    signOut,
+  } = useUser();
   const pathname = usePathname();
+  const onAuthPage = pathname === "/login" || pathname === "/signup";
 
   const newUser = async () => {
     const id = prompt("New learner id (slug, e.g. abu_ali):");
@@ -46,6 +57,19 @@ export function Header() {
     </Link>
   );
 
+  // On the login/signup pages there is nothing to pick, seed or navigate to yet.
+  if (onAuthPage) {
+    return (
+      <header className="border-b border-line bg-panel">
+        <div className="px-6 py-3">
+          <h1 className="text-lg font-semibold">
+            AI English <span className="text-accent">Coach</span>
+          </h1>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="border-b border-line bg-panel">
       <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
@@ -80,12 +104,20 @@ export function Header() {
             </option>
           ))}
         </select>
-        <button className="btn" onClick={newUser}>
-          + New
-        </button>
+        {/* With auth on, profiles come from signup — POST /users is refused. */}
+        {!authRequired && (
+          <button className="btn" onClick={newUser}>
+            + New
+          </button>
+        )}
         <button className="btn" onClick={seed}>
           Load demo data
         </button>
+        {signedInAs && (
+          <button className="btn" onClick={signOut} title={`Signed in as ${signedInAs}`}>
+            Sign out
+          </button>
+        )}
       </div>
       <nav className="flex gap-1 px-6">
         {tab("/", "Dashboard")}

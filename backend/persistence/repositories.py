@@ -9,7 +9,9 @@ scoring retunes.
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 
+from backend.core.passwords import PasswordHash
 from backend.core.util import new_id, now_iso
 from backend.domain.models import (
     Assessment,
@@ -438,6 +440,114 @@ class ReportRepository:
                 (user_id, limit),
             ).fetchall()
         return [dict(r) for r in rows]
+
+
+class CredentialRepository:
+    """Password credentials, one row per user at most.
+
+    A profile with no row here is *credential-less*: it exists and can be
+    practised against anonymously, but nobody can log in as it. Every profile
+    created before auth (including the seeded demo learner) starts that way.
+    """
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def set(self, user_id: str, ph: PasswordHash) -> None:
+        """Insert or replace the credential for ``user_id``."""
+        now = now_iso()
+        with self.db.connection() as con:
+            con.execute(
+                "INSERT INTO user_credentials(user_id, algo, iterations, salt, digest,"
+                " created_at, updated_at) VALUES (?,?,?,?,?,?,?)"
+                " ON CONFLICT(user_id) DO UPDATE SET algo=excluded.algo,"
+                " iterations=excluded.iterations, salt=excluded.salt,"
+                " digest=excluded.digest, updated_at=excluded.updated_at",
+                (user_id, ph.algo, ph.iterations, ph.salt, ph.digest, now, now),
+            )
+
+    def get(self, user_id: str) -> PasswordHash | None:
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT algo, iterations, salt, digest FROM user_credentials WHERE user_id=?",
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return PasswordHash(
+            algo=row["algo"],
+            iterations=row["iterations"],
+            salt=row["salt"],
+            digest=row["digest"],
+        )
+
+    def exists(self, user_id: str) -> bool:
+        with self.db.connection() as con:
+            return (
+                con.execute(
+                    "SELECT 1 FROM user_credentials WHERE user_id=?", (user_id,)
+                ).fetchone()
+                is not None
+            )
+
+    def delete(self, user_id: str) -> bool:
+        with self.db.connection() as con:
+            return con.execute(
+                "DELETE FROM user_credentials WHERE user_id=?", (user_id,)
+            ).rowcount > 0
+
+
+class AuthSessionRepository:
+    """Login sessions, keyed by the token's fingerprint — never the token."""
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def create(self, user_id: str, token_hash: str, *, ttl_hours: int) -> str:
+        """Record a session and return its expiry as an ISO timestamp."""
+        now = datetime.now(UTC)
+        expires_at = (now + timedelta(hours=ttl_hours)).isoformat()
+        with self.db.connection() as con:
+            con.execute(
+                "INSERT INTO auth_sessions(token_hash, user_id, created_at, expires_at,"
+                " last_seen_at) VALUES (?,?,?,?,?)",
+                (token_hash, user_id, now.isoformat(), expires_at, now.isoformat()),
+            )
+        return expires_at
+
+    def resolve(self, token_hash: str) -> str | None:
+        """The user this token belongs to, or None if unknown or expired.
+
+        An expired row is deleted on the way out, so the table self-cleans along
+        the path that actually notices — no sweeper job for a single-box app.
+        """
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT user_id, expires_at FROM auth_sessions WHERE token_hash=?",
+                (token_hash,),
+            ).fetchone()
+            if row is None:
+                return None
+            if datetime.fromisoformat(row["expires_at"]) <= datetime.now(UTC):
+                con.execute("DELETE FROM auth_sessions WHERE token_hash=?", (token_hash,))
+                return None
+            con.execute(
+                "UPDATE auth_sessions SET last_seen_at=? WHERE token_hash=?",
+                (now_iso(), token_hash),
+            )
+            return str(row["user_id"])
+
+    def delete(self, token_hash: str) -> bool:
+        with self.db.connection() as con:
+            return con.execute(
+                "DELETE FROM auth_sessions WHERE token_hash=?", (token_hash,)
+            ).rowcount > 0
+
+    def delete_for_user(self, user_id: str) -> int:
+        with self.db.connection() as con:
+            return con.execute(
+                "DELETE FROM auth_sessions WHERE user_id=?", (user_id,)
+            ).rowcount
 
 
 def is_unique_violation(exc: Exception) -> bool:

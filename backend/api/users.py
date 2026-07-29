@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from backend.api.deps import Repositories, get_repos
+from backend.api.deps import Repositories, current_user_id, get_repos
 from backend.domain.models import User
+from config.settings import get_settings
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-_SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+# Public: /auth/signup validates new account ids against the same rule.
+USER_ID_SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
 
 
 class CreateUserRequest(BaseModel):
@@ -30,7 +32,7 @@ class UpdateUserRequest(BaseModel):
 
 @router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
 def create_user(body: CreateUserRequest, repos: Repositories = Depends(get_repos)) -> User:
-    if not _SLUG.match(body.user_id):
+    if not USER_ID_SLUG.match(body.user_id):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "user_id must be a slug: lowercase letters, digits, '-' or '_', 2-64 chars",
@@ -46,7 +48,17 @@ def create_user(body: CreateUserRequest, repos: Repositories = Depends(get_repos
 
 
 @router.get("", response_model=list[User])
-def list_users(repos: Repositories = Depends(get_repos)) -> list[User]:
+def list_users(request: Request, repos: Repositories = Depends(get_repos)) -> list[User]:
+    """All profiles — or just your own once auth is enforced.
+
+    Both UIs drive their learner picker off this list. With auth on, handing back
+    every profile would turn that picker into a roster of other people's names,
+    so it narrows to the signed-in learner.
+    """
+    if get_settings().auth_required:
+        uid = current_user_id(request)
+        user = repos.users.get(uid) if uid else None
+        return [user] if user else []
     return repos.users.list()
 
 

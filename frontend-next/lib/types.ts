@@ -18,6 +18,19 @@ export interface User {
   streak_days: number;
 }
 
+export interface AuthStatus {
+  auth_required: boolean;
+  authenticated: boolean;
+  user_id: string | null;
+  min_password_length: number;
+}
+
+export interface AuthSession {
+  token: string;
+  expires_at: string;
+  user: User;
+}
+
 export interface ProgressOverview {
   user_id: string;
   display_name: string;

@@ -139,6 +139,7 @@
   <select id="userSel"></select>
   <button id="newUserBtn">+ New</button>
   <button id="seedBtn">Load demo</button>
+  <button id="signOutBtn" class="hidden">Sign out</button>
 </header>
 <nav>
   <button data-tab="dash" class="active">Dashboard</button>
@@ -263,19 +264,112 @@
   </div>
 </div>
 
+<!-- Sign-in gate. Only ever shown when the server reports auth_required and this
+     browser has no valid session; with auth off it never appears. -->
+<div id="authGate" class="modal-back hidden">
+  <div class="modal" style="text-align:left">
+    <h3 id="authTitle">Sign in</h3>
+    <p id="authIntro">Your profile, history and scores stay on this machine.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px">
+      <input id="authUser" placeholder="Learner id (e.g. abu_ali)" autocomplete="username"/>
+      <input id="authName" class="hidden" placeholder="Display name"/>
+      <input id="authPass" type="password" placeholder="Password" autocomplete="current-password"/>
+      <div id="authErr" class="banner hidden"></div>
+    </div>
+    <div class="actions">
+      <button id="authSubmit" class="primary">Sign in</button>
+      <button id="authSwitch">Create an account</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const $=(s)=>document.querySelector(s);
+// Session token. Same origin as the API, so the httpOnly cookie the server sets
+// would work on its own — the header is sent as well so this page behaves
+// identically when someone points it at a different COACH host.
+const TOKEN_KEY='coach.token';
+const tok={
+  get(){try{return localStorage.getItem(TOKEN_KEY);}catch{return null;}},
+  set(v){try{v?localStorage.setItem(TOKEN_KEY,v):localStorage.removeItem(TOKEN_KEY);}catch{}},
+};
+function authHead(h={}){const t=tok.get();return t?Object.assign({},h,{Authorization:'Bearer '+t}):h;}
+// A 401 mid-session means the token expired or was revoked elsewhere. Re-open
+// the gate instead of letting every panel fail with a raw error string.
+async function guard(r){
+  if(r.status===401){showGate();throw new Error('Your session has ended. Please sign in again.');}
+  if(!r.ok)throw new Error(await r.text());
+  return r.status===204?null:r.json();
+}
 const api={
-  async get(p){const r=await fetch(p);if(!r.ok)throw new Error(await r.text());return r.json();},
-  async post(p,b){const r=await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):null});if(!r.ok)throw new Error(await r.text());return r.json();},
-  async patch(p,b){const r=await fetch(p,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();},
+  async get(p){return guard(await fetch(p,{headers:authHead()}));},
+  async post(p,b){return guard(await fetch(p,{method:'POST',headers:authHead({'Content-Type':'application/json'}),body:b?JSON.stringify(b):null}));},
+  async patch(p,b){return guard(await fetch(p,{method:'PATCH',headers:authHead({'Content-Type':'application/json'}),body:JSON.stringify(b)}));},
 };
 const DIMS=["pronunciation","grammar","vocabulary","listening","fluency","confidence","coherence","relevance"];
 const LEVELS=["Beginner","Intermediate","Advanced","Professional","Fluent","Native-like"];
 const SKILL_COLORS={pronunciation:'#2dd4bf',grammar:'#818cf8',vocabulary:'#f472b6',listening:'#60a5fa',fluency:'#34d399',confidence:'#fbbf24',coherence:'#a78bfa',relevance:'#fb923c'};
 let currentUser=null, currentLevel=0, topic='';
 
+// --- auth ------------------------------------------------------------------
+let authRequired=false, signedInAs=null, minPwLen=8, gateMode='login';
+
+function showGate(mode){
+  gateMode=mode||gateMode;
+  const signup=gateMode==='signup';
+  $('#authTitle').textContent=signup?'Create your account':'Sign in';
+  $('#authIntro').textContent=signup
+    ? `Pick a learner id and a password of at least ${minPwLen} characters.`
+    : 'Your profile, history and scores stay on this machine.';
+  $('#authName').classList.toggle('hidden',!signup);
+  $('#authPass').setAttribute('autocomplete',signup?'new-password':'current-password');
+  $('#authSubmit').textContent=signup?'Create account':'Sign in';
+  $('#authSwitch').textContent=signup?'I already have an account':'Create an account';
+  $('#authErr').classList.add('hidden');
+  $('#authGate').classList.remove('hidden');
+  $('#authUser').focus();
+}
+function hideGate(){$('#authGate').classList.add('hidden');}
+function gateError(msg){const e=$('#authErr');e.textContent=msg;e.classList.remove('hidden');}
+
+$('#authSwitch').addEventListener('click',()=>showGate(gateMode==='signup'?'login':'signup'));
+$('#authGate').addEventListener('keydown',e=>{if(e.key==='Enter')$('#authSubmit').click();});
+$('#authSubmit').addEventListener('click',async()=>{
+  const id=$('#authUser').value.trim(), pw=$('#authPass').value;
+  if(!id||!pw)return gateError('Learner id and password are both required.');
+  const signup=gateMode==='signup';
+  const body=signup?{user_id:id,display_name:$('#authName').value.trim()||id,password:pw}:{user_id:id,password:pw};
+  $('#authSubmit').disabled=true;
+  try{
+    const s=await api.post(signup?'/auth/signup':'/auth/login',body);
+    tok.set(s.token);
+    currentUser=s.user.user_id;
+    $('#authPass').value='';
+    hideGate();
+    await boot();
+  }catch(e){
+    let msg=e.message||String(e);
+    try{msg=JSON.parse(msg).detail||msg;}catch{}
+    gateError(signup&&/already has an account/.test(msg)?msg+' Sign in instead.':msg);
+  }finally{$('#authSubmit').disabled=false;}
+});
+$('#signOutBtn').addEventListener('click',async()=>{
+  try{await api.post('/auth/logout');}catch{}
+  tok.set(null);currentUser=null;location.reload();
+});
+
 async function boot(){
+  // Ask first: this decides whether to render a dashboard or a sign-in gate.
+  // Every other call below would 401 if we got that wrong.
+  const st=await api.get('/auth/status').catch(()=>null);
+  authRequired=!!(st&&st.auth_required);
+  signedInAs=st&&st.authenticated?st.user_id:null;
+  if(st&&st.min_password_length)minPwLen=st.min_password_length;
+  if(authRequired&&!signedInAs){showGate('login');return;}
+  $('#signOutBtn').classList.toggle('hidden',!signedInAs);
+  // With auth on, accounts come from signup — POST /users is refused.
+  $('#newUserBtn').classList.toggle('hidden',authRequired);
+
   try{const m=await api.get('/models');const on=m.some(x=>x.status==='loaded');
     $('#modelsPill').className='pill '+(on?'on':'off');$('#modelsPill').innerHTML=`<span class="dot"></span>models: ${on?'loaded':'off'}`;}
   catch{$('#modelsPill').textContent='models: ?';}
@@ -439,7 +533,10 @@ async function ensureSession(){
   proc.onaudioprocess=e=>{ if(sttate!=='recording'||!ws||ws.readyState!==1)return; const pcm=to16k(e.inputBuffer.getChannelData(0),ac.sampleRate); if(pcm.byteLength)ws.send(pcm); };
   proc.connect(ac.destination); // silent output (we never write outputBuffer) → no echo
   const proto=location.protocol==='https:'?'wss':'ws';const tq=topic?`&topic=${encodeURIComponent(topic)}`:'';
-  ws=new WebSocket(`${proto}://${location.host}/ws/session?user_id=${encodeURIComponent(currentUser)}&mode=free&ptt=1${tq}`);
+  // A WebSocket handshake carries no Authorization header, so the token rides in
+  // the query string (the server also accepts the session cookie here).
+  const kq=tok.get()?`&token=${encodeURIComponent(tok.get())}`:'';
+  ws=new WebSocket(`${proto}://${location.host}/ws/session?user_id=${encodeURIComponent(currentUser)}&mode=free&ptt=1${tq}${kq}`);
   ws.binaryType='arraybuffer';
   await new Promise((res)=>{ws.onopen=res;ws.onerror=res;});
   ws.onclose=()=>{setState('idle');$('#wsStatus').textContent='Session ended';};

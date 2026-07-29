@@ -68,6 +68,37 @@ practice). Other endpoints:
 To see the dashboard populated immediately: `uv run python scripts/seed_user.py`
 (creates **Abu Ali** with demo history), or click **Load demo data** in the UI.
 
+### Accounts (signup / login)
+
+Both UIs ship a signup and login screen, and the API exposes `/auth/signup`,
+`/auth/login`, `/auth/logout`, `/auth/me` and `/auth/status`. Passwords are
+PBKDF2-HMAC-SHA256 (stdlib — no new wheel); session tokens are stored **hashed**,
+so a stolen database yields no live sessions.
+
+Enforcement is **off by default** (`COACH_AUTH_REQUIRED=false`) because the system
+is single-learner by design and every existing client calls the API anonymously.
+Create the account first, then turn enforcement on and restart:
+
+```bash
+# 1. with the app running, create your account (or use the UI's sign-up screen)
+curl -s -X POST http://127.0.0.1:8000/auth/signup \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"abu_ali","display_name":"Abu Ali","password":"choose-a-real-one"}'
+
+# 2. enforce it
+COACH_AUTH_REQUIRED=true ./.venv/Scripts/python.exe -m uvicorn backend.main:app --port 8000
+```
+
+Signing up with an **existing profile that has no password claims it** — the
+seeded demo learner keeps its history instead of being stranded. Once a profile
+has a password, signup returns 409 and only login gets in.
+
+With enforcement on: every data route needs `Authorization: Bearer <token>` (or
+the session cookie), a learner may only read their own `/users/{id}/...`,
+`/ws/session` requires `?token=`, and new profiles come from signup rather than
+`POST /users`. `/healthz`, `/metrics` and `/guard` stay open so Prometheus and
+the Grafana dashboard keep scraping.
+
 ### Frontend
 
 The UI is a single self-contained page (`frontend/index.html`) served by the app —
@@ -239,8 +270,8 @@ english-coach/
 │   │   └── gap_analysis.py  planner.py  feedback.py  insights.py  reporting.py
 │   ├── persistence/                # SQLite (WAL): db · migrations · repositories · progress
 │   ├── domain/                     # models.py (aggregates) · events.py
-│   └── api/                        # users · sessions · assessments · progress · insights
-│                                   # · models · ops (/stats /topics) · dev
+│   └── api/                        # auth (signup/login) · users · sessions · assessments
+│                                   # · progress · insights · models · ops · dev
 ├── frontend/index.html             # zero-dependency served UI (no Node, no build, no CDN)
 ├── frontend-next/                  # Next.js 14 dashboard (TS + Tailwind + Recharts)
 │   ├── app/                        # page · practice · monitor · report · layout

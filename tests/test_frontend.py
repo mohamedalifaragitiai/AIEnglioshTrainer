@@ -40,6 +40,22 @@ def test_hidden_utility_beats_component_display_rules():
     assert "display:flex" in later, "sanity: .modal-back really is declared later"
 
 
+def test_served_ui_stays_reachable_when_auth_is_enforced():
+    """"/" is the login screen, so gating it would leave nowhere to sign in.
+
+    The page itself carries no learner data — every figure on it arrives from an
+    API call that *is* gated.
+    """
+    from tests.test_auth import auth_enforced
+
+    with TestClient(app) as client, auth_enforced():
+        r = client.get("/")
+        assert r.status_code == 200
+        assert 'id="authGate"' in r.text, "the served UI must ship a sign-in gate"
+        # The gate is hidden until /auth/status says a session is needed.
+        assert 'id="authGate" class="modal-back hidden"' in r.text
+
+
 def test_seed_demo_populates_dashboard():
     with TestClient(app) as client:
         uid = "d" + new_id()[:8]
