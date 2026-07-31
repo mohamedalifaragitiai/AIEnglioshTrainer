@@ -6,11 +6,17 @@
 <title>AI English Coach</title>
 <style>
   :root {
-    --bg:#0b1120; --bg2:#0f172a; --panel:#151f34; --panel2:#1c2942; --line:#293a5a;
-    --text:#e8eefc; --muted:#93a4c4; --dim:#5f7196;
-    --accent:#2dd4bf; --accent2:#818cf8; --indigo:#6366f1;
+    /* Deeper, bluer base so the teal/indigo accents carry more of the contrast
+       and long reading surfaces (transcripts, tables) stay comfortable. */
+    --bg:#080d1a; --bg2:#0d1426; --panel:#141d31; --panel2:#1b2740; --line:#2a3a5c;
+    --text:#eaf0fd; --muted:#9db0d0; --dim:#68799e;
+    --accent:#2dd4bf; --accent2:#a5b4fc; --indigo:#6366f1;
     --good:#34d399; --warn:#fbbf24; --bad:#f87171;
-    --radius:14px; --shadow:0 8px 30px rgba(0,0,0,.35);
+    /* Tinted fills for chips and callouts — a border alone reads as an error
+       state; a wash reads as a category. */
+    --good-bg:rgba(52,211,153,.12); --warn-bg:rgba(251,191,36,.12);
+    --bad-bg:rgba(248,113,113,.12); --accent-bg:rgba(45,212,191,.10);
+    --radius:14px; --shadow:0 8px 30px rgba(0,0,0,.38);
   }
   * { box-sizing:border-box; }
   html,body { margin:0; }
@@ -113,6 +119,29 @@
      later, so plain display:none lost — the results modal was on screen from page
      load and Close could not dismiss it. */
   .hidden{display:none!important} code{background:var(--panel2);padding:1px 6px;border-radius:6px;font-size:12.5px}
+  /* conversations: the transcript reads as a chat, the analysis as a report */
+  .conv-item{display:flex;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--line);
+    border-radius:12px;background:var(--panel);margin-bottom:10px;cursor:pointer;transition:.15s}
+  .conv-item:hover{border-color:var(--accent);background:var(--panel2);transform:translateY(-1px)}
+  .conv-when{font-weight:700} .conv-prev{color:var(--muted);font-size:12.5px;margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:52ch}
+  .score-chip{font-weight:800;font-size:15px;padding:6px 12px;border-radius:10px;white-space:nowrap}
+  .s-good{color:var(--good);background:var(--good-bg)} .s-mid{color:var(--warn);background:var(--warn-bg)}
+  .s-low{color:var(--bad);background:var(--bad-bg)} .s-none{color:var(--dim);background:var(--panel2)}
+  .turn{padding:11px 14px;border-radius:12px;margin-bottom:9px;max-width:82%}
+  .turn.learner{background:var(--panel2);border:1px solid var(--line);margin-left:auto}
+  .turn.coach{background:rgba(99,102,241,.10);border:1px solid rgba(129,140,248,.30)}
+  .turn-meta{font-size:11.5px;color:var(--dim);margin-top:7px;display:flex;gap:10px;flex-wrap:wrap}
+  .corr{margin-top:8px;padding:8px 10px;border-radius:9px;background:var(--bad-bg);
+    border-left:3px solid var(--bad);font-size:13px}
+  .corr b{color:var(--good)} .corr s{color:var(--muted)}
+  .rec{padding:12px 14px;border-radius:12px;background:var(--accent-bg);
+    border-left:3px solid var(--accent);margin-bottom:10px}
+  .rec h4{margin:0 0 6px;font-size:14px;text-transform:capitalize}
+  .rec ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:13px}
+  .rec li{margin-bottom:4px}
+  footer{padding:26px 22px 34px;text-align:center;color:var(--dim);font-size:12.5px}
+  footer a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line)}
   /* End-of-session results modal */
   .modal-back{position:fixed;inset:0;background:rgba(4,9,20,.72);backdrop-filter:blur(3px);
     display:flex;align-items:center;justify-content:center;z-index:50}
@@ -133,8 +162,10 @@
 <header>
   <div class="brand"><div class="logo">🎓</div>AI English <span>&nbsp;Coach</span></div>
   <span class="lvl-badge" id="lvlBadge">Level —</span>
-  <span class="pill" id="modelsPill"><span class="dot"></span>models…</span>
-  <span class="pill" id="verPill" title="Running build"></span>
+  <!-- Operational chrome: interesting to whoever runs the box, noise to a
+       learner. boot() reveals both only for an admin. -->
+  <span class="pill hidden" id="modelsPill"><span class="dot"></span>models…</span>
+  <span class="pill hidden" id="verPill" title="Running build"></span>
   <div class="spacer"></div>
   <label class="muted" for="userSel">Learner</label>
   <select id="userSel"></select>
@@ -145,9 +176,12 @@
 <nav>
   <button data-tab="dash" class="active">Dashboard</button>
   <button data-tab="practice">Practice</button>
+  <button data-tab="convos">Conversations</button>
   <button data-tab="report">Report</button>
-  <button data-tab="monitor">Monitor</button>
-  <!-- Revealed by boot() only when /auth/status reports is_admin. -->
+  <!-- Monitor is machine state (VRAM, degradation ladder, model status): it
+       belongs to whoever runs the box, not to someone practising English.
+       Both of these are revealed by boot() when /auth/status says is_admin. -->
+  <button data-tab="monitor" id="monitorTab" class="hidden">Monitor</button>
   <button data-tab="admin" id="adminTab" class="hidden">Admin</button>
 </nav>
 
@@ -247,6 +281,20 @@
     </div>
   </section>
 
+  <!-- CONVERSATIONS (analysis across all, then one at a time) -->
+  <section id="convos" class="hidden">
+    <div id="convOverview"></div>
+    <div class="card" style="margin-top:16px">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Your conversations</h3>
+        <button id="convRefresh">Refresh</button>
+      </div>
+      <div class="muted" id="convNote" style="font-size:12.5px;margin:8px 0 12px"></div>
+      <div id="convList"></div>
+    </div>
+    <div class="card hidden" id="convDetail" style="margin-top:16px"></div>
+  </section>
+
   <!-- ADMIN (every learner — only rendered for an admin account) -->
   <section id="admin" class="hidden">
     <div class="grid tiles" id="adminTiles"></div>
@@ -263,6 +311,11 @@
     </div>
   </section>
 </main>
+
+<footer>
+  © <span id="year">2026</span> <b>Abu Ali</b> · AI English Coach — fully offline, self-hosted.
+  <span id="footVer" class="muted"></span>
+</footer>
 
 <!-- Shown after End: the cold path scores the session, then hands over to the report. -->
 <div id="resultsModal" class="modal-back hidden">
@@ -396,10 +449,18 @@ async function boot(){
   // refuses a non-admin regardless of whether this button is on screen.
   isAdmin=!!(st&&st.is_admin);
   $('#adminTab').classList.toggle('hidden',!isAdmin);
+  // Machine state is the operator's business, not the learner's. With auth off
+  // there is only one person using the box, so it all stays visible.
+  const operator=isAdmin||!authRequired;
+  $('#monitorTab').classList.toggle('hidden',!operator);
+  $('#modelsPill').classList.toggle('hidden',!operator);
+  $('#verPill').classList.toggle('hidden',!operator);
 
   // Which build is answering. Open endpoint, so it renders even signed out.
+  $('#year').textContent=new Date().getFullYear();
   try{const v=await api.get('/version');
     $('#verPill').textContent='v'+v.version;
+    $('#footVer').textContent=' v'+v.version;
     if(v.git_sha)$('#verPill').title=`Running build — v${v.version} (${v.git_sha})`;}
   catch{$('#verPill').classList.add('hidden');}
 
@@ -426,12 +487,113 @@ $('#seedBtn').addEventListener('click',async()=>{if(!currentUser)return alert('S
 // tabs
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-  ['dash','practice','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  ['dash','practice','convos','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
   if(b.dataset.tab==='dash')renderDashboard();
   if(b.dataset.tab==='report')renderReport();
   if(b.dataset.tab==='admin')renderAdmin();
+  if(b.dataset.tab==='convos')renderConversations();
   if(b.dataset.tab==='monitor')startMonitor();else stopMonitor();
 }));
+
+// --- conversations: the analysis across all, then one at a time ------------
+function scoreClass(v){return v==null?'s-none':v>=75?'s-good':v>=60?'s-mid':'s-low';}
+function scoreChip(v){return `<span class="score-chip ${scoreClass(v)}">${v==null?'—':Math.round(v)}</span>`;}
+function fmtDur(s){
+  if(s==null)return '—';
+  const m=Math.floor(s/60), sec=Math.round(s%60);
+  return m?`${m}m ${sec}s`:`${sec}s`;
+}
+function recCards(recs){
+  if(!recs||!recs.length)return '<p class="muted">No weak areas flagged — keep practising to build more signal.</p>';
+  return recs.map(r=>`<div class="rec"><h4>${esc(r.skill)} · ${Math.round(r.score)} <span class="pill">${esc(r.priority)}</span></h4>
+    <ul>${r.actions.map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`).join('');
+}
+async function renderConversations(){
+  if(!currentUser){$('#convNote').textContent='Select a learner first.';return;}
+  $('#convNote').textContent='Loading…';
+  $('#convDetail').classList.add('hidden');
+  let list,analysis;
+  try{
+    [list,analysis]=await Promise.all([
+      api.get(`/users/${encodeURIComponent(currentUser)}/conversations`),
+      api.get(`/users/${encodeURIComponent(currentUser)}/analysis`),
+    ]);
+  }catch(e){$('#convNote').textContent='Could not load: '+e.message;return;}
+
+  const t=analysis.trend||{};
+  const arrow=t.direction==='improving'?'▲':t.direction==='declining'?'▼':'▬';
+  $('#convOverview').innerHTML=`
+    <div class="grid tiles">
+      <div class="card tile"><div class="l">Conversations</div><div class="v">${analysis.conversations}</div>
+        <div class="s">${analysis.learner_turns} turns spoken</div></div>
+      <div class="card tile"><div class="l">Practice time</div><div class="v">${fmtDur(analysis.practice_seconds)}</div>
+        <div class="s">across all sessions</div></div>
+      <div class="card tile"><div class="l">Overall</div><div class="v">${analysis.overall!=null?Math.round(analysis.overall):'—'}</div>
+        <div class="s">${analysis.scored_conversations} scored</div></div>
+      <div class="card tile"><div class="l">Trend</div><div class="v">${arrow} ${t.delta!=null?(t.delta>0?'+':'')+t.delta:'—'}</div>
+        <div class="s">${esc(t.direction||'')}</div></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin:0 0 4px">What to work on next</h3>
+      <div class="muted" style="font-size:12.5px;margin-bottom:12px">
+        ${analysis.strengths.length?'Strongest: <b>'+analysis.strengths.map(esc).join(', ')+'</b>. ':''}
+        ${analysis.weaknesses.length?'Weakest: <b>'+analysis.weaknesses.map(esc).join(', ')+'</b>.':'No weak areas flagged.'}
+      </div>
+      ${recCards(analysis.recommendations)}
+    </div>`;
+
+  $('#convNote').textContent=list.length
+    ? `${list.length} conversation${list.length===1?'':'s'} — select one for the full turn-by-turn analysis.`
+    : 'No conversations yet. Use the Practice tab to start one.';
+  $('#convList').innerHTML=list.map(c=>`<div class="conv-item" data-sid="${esc(c.session_id)}">
+      ${scoreChip(c.overall)}
+      <div style="flex:1;min-width:0">
+        <div class="conv-when">${fmtDate(c.started_at)} · ${fmtDur(c.duration_s)} · ${c.learner_turns} turn${c.learner_turns===1?'':'s'}</div>
+        <div class="conv-prev">${c.preview?esc(c.preview):'<i>no transcript</i>'}</div>
+      </div>
+      <div class="muted" style="font-size:12px">${c.assessments} scored</div>
+    </div>`).join('');
+  $('#convList').querySelectorAll('.conv-item').forEach(el=>
+    el.addEventListener('click',()=>openConversation(el.dataset.sid)));
+}
+async function openConversation(sid){
+  const box=$('#convDetail');
+  box.classList.remove('hidden');
+  box.innerHTML='<p class="muted">Loading the analysis…</p>';
+  let r;
+  try{r=await api.get(`/users/${encodeURIComponent(currentUser)}/conversations/${encodeURIComponent(sid)}`);}
+  catch(e){box.innerHTML='<p class="muted">Could not load: '+esc(e.message)+'</p>';return;}
+
+  const dims=Object.entries(r.scores||{});
+  box.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><h3 style="margin:0 0 4px">Conversation analysis</h3>
+        <div class="muted" style="font-size:12.5px">${fmtDate(r.started_at)} · ${fmtDur(r.duration_s)} ·
+          ${r.learner_turns} turns · ${r.words_spoken} words</div></div>
+      ${scoreChip(r.overall)}
+    </div>
+    ${r.pending_scoring?'<div class="banner" style="margin-top:12px">Some turns are still being scored — assessment work is deferred while the machine is busy. Re-open this in a minute.</div>':''}
+    ${dims.length?`<div class="row" style="gap:8px;margin:14px 0;flex-wrap:wrap">
+      ${dims.map(([d,v])=>`<span class="pill ${scoreClass(v)}">${esc(d)} ${Math.round(v)}</span>`).join('')}</div>`:''}
+    ${r.recommendations.length?`<h4 style="margin:16px 0 8px">How to improve</h4>${recCards(r.recommendations)}`:''}
+    ${r.corrections.length?`<h4 style="margin:16px 0 8px">Corrections (${r.corrections.length})</h4>
+      ${r.corrections.map(c=>`<div class="corr"><s>${esc(c.text||'')}</s> → <b>${esc(c.correction||'')}</b>
+        ${c.type?`<span class="muted"> · ${esc(c.type)}</span>`:''}</div>`).join('')}`:''}
+    ${r.suggestions.length?`<h4 style="margin:16px 0 8px">Vocabulary to try</h4>
+      <div class="chips">${r.suggestions.map(s=>`<span class="pill">${esc(s)}</span>`).join('')}</div>`:''}
+    <h4 style="margin:18px 0 10px">The conversation</h4>
+    <div>${r.turns.map(t=>`<div class="turn ${t.role==='coach'?'coach':'learner'}">
+        <div>${esc(t.transcript||'…')}</div>
+        <div class="turn-meta">
+          <span>${t.role==='coach'?'Coach':'You'}</span>
+          ${t.overall!=null?`<span>score ${Math.round(t.overall)}</span>`:''}
+          ${t.notes&&t.notes.length?`<span>${t.notes.map(esc).join(' · ')}</span>`:''}
+        </div>
+        ${(t.corrections||[]).map(c=>`<div class="corr"><s>${esc(c.text||'')}</s> → <b>${esc(c.correction||'')}</b></div>`).join('')}
+      </div>`).join('')}</div>`;
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+}
+$('#convRefresh').addEventListener('click',renderConversations);
 
 // --- admin: every learner, their activity and their scores -----------------
 let adminData=null;
