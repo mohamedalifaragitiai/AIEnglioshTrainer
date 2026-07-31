@@ -23,6 +23,39 @@ export interface AuthStatus {
   authenticated: boolean;
   user_id: string | null;
   min_password_length: number;
+  is_admin: boolean;
+}
+
+export interface AdminUserRow {
+  user_id: string;
+  display_name: string;
+  created_at: string;
+  current_level: number;
+  streak_days: number;
+  is_admin: boolean;
+  has_password: boolean;
+  sessions: number;
+  utterances: number;
+  assessments: number;
+  last_active: string | null;
+  latest_overall: number | null;
+  avg_overall: number | null;
+  avg_scores: Partial<Record<Dimension, number>>;
+}
+
+export interface AdminOverview {
+  totals: {
+    users: number;
+    admins: number;
+    sessions: number;
+    utterances: number;
+    assessments: number;
+    avg_overall: number | null;
+    active_7d: number;
+    active_30d: number;
+    never_practised: number;
+  };
+  users: AdminUserRow[];
 }
 
 export interface AuthSession {

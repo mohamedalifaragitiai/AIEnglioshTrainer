@@ -1,4 +1,5 @@
 import type {
+  AdminOverview,
   Assessment,
   AuthSession,
   AuthStatus,
@@ -69,6 +70,7 @@ export const api = {
 
   // --- auth ---------------------------------------------------------------
   version: () => req<{ version: string; git_sha: string | null }>("/version"),
+  adminOverview: () => req<AdminOverview>("/admin/overview"),
   authStatus: () => req<AuthStatus>("/auth/status"),
   signup: (user_id: string, display_name: string, password: string) =>
     req<AuthSession>("/auth/signup", {

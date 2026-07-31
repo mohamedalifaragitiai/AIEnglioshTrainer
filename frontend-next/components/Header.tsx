@@ -18,6 +18,7 @@ export function Header() {
     modelsLoaded,
     authRequired,
     signedInAs,
+    isAdmin,
     signOut,
   } = useUser();
   const pathname = usePathname();
@@ -137,6 +138,8 @@ export function Header() {
         {tab("/practice", "Practice")}
         {tab("/report", "Report")}
         {tab("/monitor", "Monitor")}
+        {/* Shown for admins only — /admin/overview is what actually enforces it. */}
+        {isAdmin && tab("/admin", "Admin")}
       </nav>
     </header>
   );

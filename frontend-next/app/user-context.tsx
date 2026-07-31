@@ -16,6 +16,8 @@ interface UserCtx {
   authRequired: boolean;
   /** Who is signed in, when auth is on. Null while signed out or auth is off. */
   signedInAs: string | null;
+  /** Cosmetic only — /admin/* enforces this server-side regardless. */
+  isAdmin: boolean;
   minPasswordLength: number;
   /** Called by the auth form after a successful signup/login. */
   adoptSession: (userId: string) => Promise<void>;
@@ -32,6 +34,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [modelsLoaded, setModelsLoaded] = useState<boolean | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [signedInAs, setSignedInAs] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [minPasswordLength, setMinPasswordLength] = useState(8);
   const router = useRouter();
   const pathname = usePathname();
@@ -69,6 +72,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     await api.logout().catch(() => {});
     setToken(null);
     setSignedInAs(null);
+    setIsAdmin(false);
     setUsers([]);
     setCurrentUserState(null);
     router.push("/login");
@@ -87,6 +91,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (status) {
         setAuthRequired(status.auth_required);
         setSignedInAs(status.authenticated ? status.user_id : null);
+        setIsAdmin(!!status.is_admin);
         setMinPasswordLength(status.min_password_length);
         if (status.auth_required && !status.authenticated) {
           if (!onAuthPage) router.replace("/login");
@@ -124,6 +129,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         modelsLoaded,
         authRequired,
         signedInAs,
+        isAdmin,
         minPasswordLength,
         adoptSession,
         signOut,
