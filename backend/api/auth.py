@@ -85,10 +85,10 @@ def _issue(
         max_age=settings.auth_session_ttl_hours * 3600,
         httponly=True,
         samesite="lax",
-        # No `secure`: this app is served over plain http on 127.0.0.1 by design
-        # (fully offline, no TLS termination). A secure cookie would never be
-        # sent back and login would silently not stick.
-        secure=False,
+        # Off for the default localhost install (plain http — a Secure cookie
+        # would never come back and sign-in would silently not stick), on for an
+        # HTTPS deployment such as `tailscale serve`. See COACH_AUTH_COOKIE_SECURE.
+        secure=settings.auth_cookie_secure,
     )
     return AuthSession(token=token, expires_at=expires_at, user=user)
 

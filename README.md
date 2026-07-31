@@ -185,6 +185,67 @@ higher.
 > WSL2/Linux (or a remote localhost). The app itself is pure-Python and talks to it
 > over HTTP, so the FastAPI app runs fine natively on Windows.
 
+## Deploying on a tailnet (Tailscale)
+
+Reach the coach from your phone or laptop without opening a port, port
+forwarding, or a public hostname. `tailscale serve` terminates HTTPS with a real
+certificate for your MagicDNS name and proxies to the app on localhost:
+
+```bash
+tailscale serve --bg --https=443 http://127.0.0.1:8000
+# -> https://<device>.<tailnet>.ts.net/
+tailscale serve reset      # withdraw it
+```
+
+Serve the **app** (`:8000`), not the Next.js dashboard: the served UI is
+same-origin with the API, so one HTTPS origin gives you the dashboard, the
+report and the live microphone — no CORS, no second base URL, and `wss://` for
+the practice socket comes free. Expose the Next.js app separately
+(`--https=8443` → `:3000`) if you want it, and then set
+`NEXT_PUBLIC_API_BASE=https://<host>` plus a matching `COACH_CORS_ORIGINS`.
+
+Three things to get right first:
+
+1. **Enable HTTPS certificates** for the tailnet, once:
+   <https://login.tailscale.com/admin/dns> → *HTTPS Certificates* → Enable.
+   Without it `tailscale serve --https` does not fail — it blocks waiting for a
+   certificate it can never be issued, which looks exactly like a hang.
+2. **`COACH_AUTH_REQUIRED=true`.** A tailnet is a network boundary, not a
+   permission model: every device signed into it would otherwise read and
+   rewrite any learner's profile.
+3. **`COACH_AUTH_COOKIE_SECURE=true`**, so the session cookie is never sent over
+   a plaintext request. Leave it `false` for the localhost-only setup, where a
+   Secure cookie would never be returned and sign-in would silently not stick.
+
+### A public link (Funnel)
+
+`tailscale serve` is tailnet-only — your devices. To let *anyone* use the coach,
+swap it for **Funnel**, which publishes the same HTTPS URL to the open internet:
+
+```bash
+tailscale funnel --bg --https=443 http://127.0.0.1:8000
+tailscale funnel reset
+```
+
+Requires HTTPS certificates (above) **and** Funnel permission for the node in
+the tailnet policy file (`nodeAttrs` → `funnel`). Before you do it, understand
+what changes — none of this matters on `127.0.0.1` and all of it matters on a
+public URL:
+
+- **Raise `COACH_AUTH_MIN_PASSWORD_LENGTH` back to 8+** and change any password
+  chosen while it was 1 (`POST /auth/password`). A one-character password is
+  reasonable when reaching the form means already having the machine; on a
+  public URL it is the whole door.
+- **Nothing rate-limits failed logins yet.** A public login form without
+  throttling is a password-guessing target.
+- **Capacity is one box.** `llama-server --parallel 1` on a 6.44GB GPU serves
+  one turn at a time, and the guard rejects new sessions at the 96% ceiling.
+  A public link does not make it multi-tenant.
+- The machine has to be awake for the link to work.
+
+`deploy-tailscale.sh --public` refuses to run while the password minimum is
+below 8, for exactly this reason.
+
 ## Versioning
 
 The running build reports itself at **`/version`** (`{"version", "git_sha"}`,

@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     # Tests lower it (hashing at full cost would blow the ~15s suite budget).
     auth_hash_iterations: int = Field(default=240_000, ge=1_000)
     auth_cookie_name: str = "coach_session"
+    # Mark the session cookie Secure. Off by default because the app is served
+    # over plain http on 127.0.0.1 — a Secure cookie would never be sent back and
+    # sign-in would silently not stick. Turn it ON for any HTTPS deployment
+    # (e.g. behind `tailscale serve`), where it stops the cookie leaking to a
+    # plaintext request. Bearer tokens are unaffected either way.
+    auth_cookie_secure: bool = False
 
     # --- Resource governance (the 96% ceiling) -----------------------------
     # Hard per-resource ceiling. Crossing it sustained risks a machine freeze.
