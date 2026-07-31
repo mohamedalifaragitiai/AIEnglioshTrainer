@@ -56,6 +56,11 @@ class AuthSession(BaseModel):
     user: User
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class AuthStatus(BaseModel):
     auth_required: bool
     authenticated: bool
@@ -178,6 +183,49 @@ def logout(
     if token:
         repos.auth_sessions.delete(token_fingerprint(token))
     response.delete_cookie(settings.auth_cookie_name)
+
+
+@router.post("/password", response_model=AuthSession)
+def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    response: Response,
+    repos: Repositories = Depends(get_repos),
+) -> AuthSession:
+    """Change your own password, proving you know the current one.
+
+    Every other session is revoked — changing a password is what you do when you
+    think someone else has it, and leaving their session live would defeat the
+    point. The caller gets a fresh token back so *this* client stays signed in.
+
+    Authenticated by token even when ``auth_required`` is off: the middleware is
+    not enforcing anything then, so this endpoint checks for itself rather than
+    letting an anonymous caller rewrite a password.
+    """
+    settings = get_settings()
+    uid = current_user_id(request)
+    user = repos.users.get(uid) if uid else None
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
+
+    stored = repos.credentials.get(user.user_id)
+    if stored is None or not verify_password(body.current_password, stored):
+        log.info("password_change_failed", user_id=user.user_id)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "current password is incorrect")
+
+    if len(body.new_password) < settings.auth_min_password_length:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"password must be at least {settings.auth_min_password_length} characters",
+        )
+
+    repos.credentials.set(
+        user.user_id,
+        hash_password(body.new_password, iterations=settings.auth_hash_iterations),
+    )
+    revoked = repos.auth_sessions.delete_for_user(user.user_id)
+    log.info("password_changed", user_id=user.user_id, sessions_revoked=revoked)
+    return _issue(response, repos, settings, user)
 
 
 @router.get("/me", response_model=User)

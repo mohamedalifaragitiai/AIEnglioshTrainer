@@ -163,6 +163,89 @@ def test_signup_claims_a_credential_less_profile_and_keeps_its_history():
         assert login.status_code == 200
 
 
+# --- changing a password ---------------------------------------------------
+
+
+def test_password_change_swaps_the_credential():
+    with TestClient(app) as client:
+        uid = _uid()
+        token = _signup(client, uid).json()["token"]
+        auth = {"Authorization": f"Bearer {token}"}
+
+        r = client.post(
+            "/auth/password",
+            headers=auth,
+            json={"current_password": PASSWORD, "new_password": "a-brand-new-one"},
+        )
+        assert r.status_code == 200, r.text
+
+        client.cookies.clear()
+        old = client.post("/auth/login", json={"user_id": uid, "password": PASSWORD})
+        assert old.status_code == 401
+        new = client.post("/auth/login", json={"user_id": uid, "password": "a-brand-new-one"})
+        assert new.status_code == 200
+
+
+def test_password_change_revokes_other_sessions_but_keeps_this_one():
+    """The reason to change a password is that someone else may have it."""
+    with TestClient(app) as client:
+        uid = _uid()
+        first = _signup(client, uid).json()["token"]
+        second = client.post(
+            "/auth/login", json={"user_id": uid, "password": PASSWORD}
+        ).json()["token"]
+        client.cookies.clear()
+
+        changed = client.post(
+            "/auth/password",
+            headers={"Authorization": f"Bearer {first}"},
+            json={"current_password": PASSWORD, "new_password": "rotated-password"},
+        )
+        assert changed.status_code == 200
+        fresh = changed.json()["token"]
+        client.cookies.clear()
+
+        # The other browser is signed out; the caller carries on with its new token.
+        def me(token: str) -> int:
+            return client.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code
+
+        assert me(second) == 401
+        assert me(first) == 401
+        assert me(fresh) == 200
+
+
+def test_password_change_needs_the_current_password_and_a_session():
+    with TestClient(app) as client:
+        uid = _uid()
+        token = _signup(client, uid).json()["token"]
+        auth = {"Authorization": f"Bearer {token}"}
+        client.cookies.clear()
+
+        wrong = client.post(
+            "/auth/password",
+            headers=auth,
+            json={"current_password": "not it", "new_password": "something-else"},
+        )
+        assert wrong.status_code == 401
+
+        anonymous = client.post(
+            "/auth/password",
+            json={"current_password": PASSWORD, "new_password": "something-else"},
+        )
+        assert anonymous.status_code == 401
+
+        short = client.post(
+            "/auth/password",
+            headers=auth,
+            json={"current_password": PASSWORD, "new_password": "abc"},
+        )
+        assert short.status_code == 422
+
+        # None of the failures moved the credential.
+        still = client.post("/auth/login", json={"user_id": uid, "password": PASSWORD})
+        assert still.status_code == 200
+
+
 # --- enforcement -----------------------------------------------------------
 
 

@@ -71,7 +71,8 @@ To see the dashboard populated immediately: `uv run python scripts/seed_user.py`
 ### Accounts (signup / login)
 
 Both UIs ship a signup and login screen, and the API exposes `/auth/signup`,
-`/auth/login`, `/auth/logout`, `/auth/me` and `/auth/status`. Passwords are
+`/auth/login`, `/auth/logout`, `/auth/password`, `/auth/me` and `/auth/status`.
+A learner id may be a slug or an email address, and is lowercased. Passwords are
 PBKDF2-HMAC-SHA256 (stdlib — no new wheel); session tokens are stored **hashed**,
 so a stolen database yields no live sessions.
 
@@ -92,6 +93,16 @@ COACH_AUTH_REQUIRED=true ./.venv/Scripts/python.exe -m uvicorn backend.main:app 
 Signing up with an **existing profile that has no password claims it** — the
 seeded demo learner keeps its history instead of being stranded. Once a profile
 has a password, signup returns 409 and only login gets in.
+
+To change a password, prove you know the current one. Every other session is
+revoked (that is the point of changing it) and the caller gets a fresh token so
+the client it was run from stays signed in:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/auth/password \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"current_password":"old one","new_password":"new one"}'
+```
 
 With enforcement on: every data route needs `Authorization: Bearer <token>` (or
 the session cookie), a learner may only read their own `/users/{id}/...`,
