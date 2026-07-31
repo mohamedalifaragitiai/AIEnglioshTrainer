@@ -248,17 +248,19 @@
 <!-- Shown after End: the cold path scores the session, then hands over to the report. -->
 <div id="resultsModal" class="modal-back hidden">
   <div class="modal">
+    <!-- The thank-you is the one line that is true the instant End is pressed;
+         everything below it depends on scoring that has not happened yet. -->
+    <h3 id="rmThanks">Thanks for your time!</h3>
     <div id="rmBusy">
       <div class="spinner"></div>
-      <h3>Processing your results…</h3>
       <p id="rmBusyMsg">Scoring this session — grammar, vocabulary, fluency and pronunciation.</p>
     </div>
     <div id="rmDone" class="hidden">
-      <h3 id="rmDoneTitle">Your results are ready</h3>
+      <h3 id="rmDoneTitle" style="font-size:15.5px">Your results are ready</h3>
       <p id="rmDoneMsg">This session has been scored and added to your progress.</p>
     </div>
     <div class="actions">
-      <button id="rmShow" class="primary hidden">Show the results report</button>
+      <button id="rmShow" class="primary hidden">Get my results report</button>
       <button id="rmClose">Close</button>
     </div>
   </div>
@@ -309,7 +311,7 @@ const api={
 const DIMS=["pronunciation","grammar","vocabulary","listening","fluency","confidence","coherence","relevance"];
 const LEVELS=["Beginner","Intermediate","Advanced","Professional","Fluent","Native-like"];
 const SKILL_COLORS={pronunciation:'#2dd4bf',grammar:'#818cf8',vocabulary:'#f472b6',listening:'#60a5fa',fluency:'#34d399',confidence:'#fbbf24',coherence:'#a78bfa',relevance:'#fb923c'};
-let currentUser=null, currentLevel=0, topic='';
+let currentUser=null, currentUserName='', currentLevel=0, topic='';
 
 // --- auth ------------------------------------------------------------------
 let authRequired=false, signedInAs=null, minPwLen=8, gateMode='login';
@@ -384,6 +386,7 @@ async function refreshUsers(){
   users.forEach(u=>{const o=document.createElement('option');o.value=u.user_id;o.textContent=`${u.display_name}`;sel.appendChild(o);});
   currentUser=(currentUser&&users.find(u=>u.user_id===currentUser))?currentUser:users[0].user_id;
   sel.value=currentUser;const u=users.find(x=>x.user_id===currentUser);currentLevel=u?u.current_level:0;
+  currentUserName=u?u.display_name:'';
   renderAll();
 }
 $('#userSel').addEventListener('change',e=>{currentUser=e.target.value;renderAll();});
@@ -568,6 +571,11 @@ function endSession(){
 // (and the guard defers it under load), so we poll for a NEW assessment rather than
 // assume one exists the moment the socket closes.
 function showResults(){
+  // Address the learner by name — but only their FIRST name, and only if the
+  // profile carries one. "Thanks for your time, abu_ali!" would be worse than
+  // no name at all.
+  const first=(currentUserName||'').trim().split(/\s+/)[0];
+  $('#rmThanks').textContent=first?`Thanks for your time, ${first}!`:'Thanks for your time!';
   $('#resultsModal').classList.remove('hidden');
   $('#rmBusy').classList.remove('hidden');
   $('#rmDone').classList.add('hidden');

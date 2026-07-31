@@ -66,6 +66,7 @@ class AuthStatus(BaseModel):
     authenticated: bool
     user_id: str | None = None
     min_password_length: int
+    is_admin: bool = False
 
 
 def _issue(
@@ -101,11 +102,13 @@ def auth_status(request: Request) -> AuthStatus:
     """
     settings = get_settings()
     uid = current_user_id(request)
+    user = Repositories.build(request.app.state.db).users.get(uid) if uid else None
     return AuthStatus(
         auth_required=settings.auth_required,
         authenticated=uid is not None,
         user_id=uid,
         min_password_length=settings.auth_min_password_length,
+        is_admin=bool(user and user.is_admin),
     )
 
 

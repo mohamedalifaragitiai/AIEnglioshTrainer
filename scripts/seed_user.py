@@ -5,8 +5,14 @@ seeds demo history when the user has none. Creates a few backdated sessions +
 versioned assessments so the progress queries (trend, streak, time-to-next-level)
 have data to return.
 
+Also sets a password and/or the admin flag, so an install can be made ready for
+``COACH_AUTH_REQUIRED=true`` without going through the signup form. Re-running
+with a new ``--password`` resets it — this is the local recovery path when a
+password is forgotten (there is no email to send a reset to).
+
 Run:  uv run python scripts/seed_user.py               # seeds abu_ali
       uv run python scripts/seed_user.py --user-id x --name "X"  --no-demo
+      uv run python scripts/seed_user.py --password 'secret' --admin
 """
 
 from __future__ import annotations
@@ -14,11 +20,13 @@ from __future__ import annotations
 import argparse
 
 from backend.core.logging import configure_logging, get_logger
+from backend.core.passwords import hash_password
 from backend.persistence.db import Database
 from backend.persistence.demo import seed_demo_history
 from backend.persistence.migrations import migrate
 from backend.persistence.repositories import (
     AssessmentRepository,
+    CredentialRepository,
     SessionRepository,
     UserRepository,
     UtteranceRepository,
@@ -33,6 +41,12 @@ def main() -> int:
     parser.add_argument("--user-id", default="abu_ali")
     parser.add_argument("--name", default="Abu Ali")
     parser.add_argument("--no-demo", action="store_true", help="create the user only")
+    parser.add_argument("--password", help="set (or reset) this user's password")
+    parser.add_argument(
+        "--admin",
+        action="store_true",
+        help="make this user an admin: sees every learner's profile, not just their own",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -53,6 +67,17 @@ def main() -> int:
         users.create(args.user_id, args.name)
         log.info("user_created", user_id=args.user_id, name=args.name)
 
+    if args.password:
+        CredentialRepository(db).set(
+            args.user_id,
+            hash_password(args.password, iterations=settings.auth_hash_iterations),
+        )
+        log.info("password_set", user_id=args.user_id)
+
+    if args.admin:
+        users.set_admin(args.user_id, True)
+        log.info("admin_granted", user_id=args.user_id)
+
     if not args.no_demo and assess.count_for_user(args.user_id) == 0:
         seed_demo_history(users, sessions, utts, assess, args.user_id)
         log.info("demo_history_seeded", user_id=args.user_id)
@@ -61,7 +86,9 @@ def main() -> int:
     n = assess.count_for_user(args.user_id)
     print(
         f"Seeded user {user.user_id!r} ({user.display_name}) — "
-        f"level {user.current_level}, streak {user.streak_days}, {n} assessment(s). "
+        f"level {user.current_level}, streak {user.streak_days}, {n} assessment(s)"
+        f"{', ADMIN' if user.is_admin else ''}"
+        f"{', password set' if args.password else ''}. "
         f"DB: {settings.resolved_db_path}"
     )
     return 0

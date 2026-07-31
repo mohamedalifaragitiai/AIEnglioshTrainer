@@ -298,6 +298,58 @@ def test_enforced_api_refuses_another_learners_profile():
             ).status_code == 403
 
 
+# --- admin ------------------------------------------------------------------
+
+
+def _make_admin(user_id: str) -> None:
+    from backend.persistence.repositories import UserRepository
+
+    UserRepository(app.state.db).set_admin(user_id, True)
+
+
+def test_admin_sees_every_learner_while_a_learner_sees_only_themselves():
+    with TestClient(app) as client:
+        boss, learner = _uid(), _uid()
+        boss_token = _signup(client, boss).json()["token"]
+        learner_token = _signup(client, learner).json()["token"]
+        _make_admin(boss)
+        boss_auth = {"Authorization": f"Bearer {boss_token}"}
+        learner_auth = {"Authorization": f"Bearer {learner_token}"}
+        client.cookies.clear()
+
+        with auth_enforced():
+            # The admin reads someone else's profile and their scores.
+            assert client.get(f"/users/{learner}", headers=boss_auth).status_code == 200
+            assert client.get(f"/users/{learner}/progress", headers=boss_auth).status_code == 200
+            assert client.get(f"/users/{learner}/assessments", headers=boss_auth).status_code == 200
+            roster = [u["user_id"] for u in client.get("/users", headers=boss_auth).json()]
+            assert boss in roster and learner in roster
+
+            # The learner is still confined to their own.
+            assert client.get(f"/users/{boss}", headers=learner_auth).status_code == 403
+            mine = [u["user_id"] for u in client.get("/users", headers=learner_auth).json()]
+            assert mine == [learner]
+
+            assert client.get("/auth/status", headers=boss_auth).json()["is_admin"] is True
+            assert client.get("/auth/status", headers=learner_auth).json()["is_admin"] is False
+
+
+def test_admin_is_not_granted_by_signing_up():
+    """The flag is set out-of-band (CLI or SQL) — never by anything a caller sends."""
+    with TestClient(app) as client:
+        uid = _uid()
+        r = _signup(client, uid)
+        assert r.json()["user"]["is_admin"] is False
+        # Even if a client tries to smuggle it through the profile update.
+        token = r.json()["token"]
+        client.patch(
+            f"/users/{uid}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"display_name": "x", "is_admin": True},
+        )
+        assert client.get(f"/users/{uid}").json()["is_admin"] is False
+
+
 def test_revoked_token_stops_working():
     with TestClient(app) as client:
         uid = _uid()

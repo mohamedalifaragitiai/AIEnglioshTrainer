@@ -73,7 +73,10 @@ def list_users(request: Request, repos: Repositories = Depends(get_repos)) -> li
     if get_settings().auth_required:
         uid = current_user_id(request)
         user = repos.users.get(uid) if uid else None
-        return [user] if user else []
+        if user is None:
+            return []
+        # An admin coaches everyone, so their picker is the full roster.
+        return repos.users.list() if user.is_admin else [user]
     return repos.users.list()
 
 

@@ -42,6 +42,7 @@ from backend.hotpath.tts import KokoroTTSStage
 from backend.hotpath.ws_session import HotPathStages, handle_ws_session
 from backend.persistence.db import Database
 from backend.persistence.migrations import migrate
+from backend.persistence.repositories import UserRepository
 from backend.serving.adapters import build_default_registry
 from backend.serving.base import ModelKind
 from config.settings import get_settings
@@ -233,16 +234,21 @@ async def enforce_auth(request, call_next):
     if user_id is None:
         return JSONResponse({"detail": "authentication required"}, status_code=401)
 
+    # An admin coaches every learner, so the ownership rule does not apply to
+    # them — that is the whole difference between the two roles.
+    admin = UserRepository(request.app.state.db).is_admin(user_id)
+
     owner = _path_owner(path)
-    if owner is not None and owner != user_id:
+    if owner is not None and owner != user_id and not admin:
         return JSONResponse({"detail": "not your profile"}, status_code=403)
-    if path.rstrip("/") == "/users" and request.method in ("POST", "DELETE"):
+    if path.rstrip("/") == "/users" and request.method in ("POST", "DELETE") and not admin:
         return JSONResponse(
             {"detail": "accounts are created through /auth/signup"}, status_code=403
         )
 
     # Hand the resolved identity down so routes don't re-verify the token.
     request.state.user_id = user_id
+    request.state.is_admin = admin
     return await call_next(request)
 
 

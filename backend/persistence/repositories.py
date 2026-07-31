@@ -113,6 +113,21 @@ class UserRepository:
             cur = con.execute("DELETE FROM users WHERE user_id=?", (user_id,))
             return cur.rowcount > 0
 
+    def set_admin(self, user_id: str, is_admin: bool) -> bool:
+        with self.db.connection() as con:
+            cur = con.execute(
+                "UPDATE users SET is_admin=? WHERE user_id=?", (1 if is_admin else 0, user_id)
+            )
+            return cur.rowcount > 0
+
+    def is_admin(self, user_id: str) -> bool:
+        """Cheap enough to call per request — primary-key lookup, one column."""
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT is_admin FROM users WHERE user_id=?", (user_id,)
+            ).fetchone()
+        return bool(row["is_admin"]) if row else False
+
     def exists(self, user_id: str) -> bool:
         with self.db.connection() as con:
             return (

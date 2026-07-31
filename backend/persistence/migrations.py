@@ -127,10 +127,19 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions(expires_at);
 """
 
+# The admin flag lives on `users` rather than in a roles table: there are exactly
+# two kinds of caller here (a learner, and someone who coaches all of them), and
+# a join table for one boolean would be ceremony. It is a plain column so an
+# operator can flip it with one UPDATE if the CLI is unavailable.
+_SCHEMA_003 = """
+ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;
+"""
+
 # (version, description, sql) — append new tuples; never rewrite an applied one.
 MIGRATIONS: list[tuple[int, str, str]] = [
     (1, "initial schema", _SCHEMA_001),
     (2, "auth: credentials + login sessions", _SCHEMA_002),
+    (3, "auth: admin flag on users", _SCHEMA_003),
 ]
 
 

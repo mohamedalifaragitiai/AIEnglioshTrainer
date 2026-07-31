@@ -36,6 +36,9 @@ class User(BaseModel):
     current_level: int = 0
     streak_days: int = 0
     settings_json: str | None = None
+    # A coach/administrator: sees every learner's profile instead of only their
+    # own. Defaulted so rows written before migration 003 still map.
+    is_admin: bool = False
 
 
 class Session(BaseModel):
