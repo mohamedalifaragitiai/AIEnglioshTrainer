@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     # plaintext request. Bearer tokens are unaffected either way.
     auth_cookie_secure: bool = False
 
+    # Failed-login throttling. Counted per (client address, user id) and per
+    # client address alone — the second one is what stops a spray across many
+    # ids from getting unlimited attempts at each. Matters most behind
+    # `tailscale funnel`, where the login form faces the open internet, but it
+    # also protects the CPU: every attempt costs a full PBKDF2 derivation.
+    auth_max_failed_logins: int = Field(default=5, ge=1)
+    auth_failure_window_s: float = Field(default=300.0, gt=0)
+    auth_lockout_s: float = Field(default=300.0, gt=0)
+
     # --- Resource governance (the 96% ceiling) -----------------------------
     # Hard per-resource ceiling. Crossing it sustained risks a machine freeze.
     resource_ceiling: float = Field(default=0.96, ge=0.50, le=0.999)

@@ -15,6 +15,8 @@ a password, signup returns 409 and only login gets you in.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
@@ -26,6 +28,7 @@ from backend.core.passwords import (
     token_fingerprint,
     verify_password,
 )
+from backend.core.throttle import FailureThrottle
 from backend.domain.models import User
 from config.settings import Settings, get_settings
 
@@ -35,6 +38,48 @@ log = get_logger("auth")
 # Deliberately identical for "no such user" and "wrong password": the failure
 # reply should not confirm which user ids exist.
 _BAD_CREDENTIALS = "invalid user id or password"
+
+
+@lru_cache(maxsize=1)
+def _throttle() -> FailureThrottle:
+    """One throttle for the process, built from settings on first use."""
+    s = get_settings()
+    return FailureThrottle(
+        max_failures=s.auth_max_failed_logins,
+        window_s=s.auth_failure_window_s,
+        lockout_s=s.auth_lockout_s,
+    )
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort caller address.
+
+    Behind `tailscale serve`/`funnel` every request arrives from 127.0.0.1, so
+    the forwarded header is what distinguishes callers; it is only trusted
+    because nothing but the local proxy can reach the app (it binds loopback).
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _throttle_keys(request: Request, user_id: str) -> list[str]:
+    ip = _client_ip(request)
+    # Per-identity AND per-address: without the second, a spray across many user
+    # ids gets a fresh budget for each one.
+    return [f"{ip}|{user_id.strip().lower()}", f"ip|{ip}"]
+
+
+def _guard_throttle(request: Request, user_id: str) -> None:
+    for key in _throttle_keys(request, user_id):
+        wait = _throttle().retry_after(key)
+        if wait > 0:
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                "too many failed attempts — wait and try again",
+                headers={"Retry-After": str(int(wait) + 1)},
+            )
 
 
 class SignupRequest(BaseModel):
@@ -156,6 +201,7 @@ def signup(
 @router.post("/login", response_model=AuthSession)
 def login(
     body: LoginRequest,
+    request: Request,
     response: Response,
     repos: Repositories = Depends(get_repos),
 ) -> AuthSession:
@@ -165,11 +211,21 @@ def login(
     # Normalize here too, or an id typed with different capitalisation than at
     # signup would look like a wrong password.
     user_id = normalize_user_id(body.user_id)
+    # Checked BEFORE the password is verified: the point is to stop paying for a
+    # PBKDF2 derivation per guess, not just to reject the answer afterwards.
+    _guard_throttle(request, user_id)
+
     stored = repos.credentials.get(user_id)
     user = repos.users.get(user_id)
     if stored is None or user is None or not verify_password(body.password, stored):
-        log.info("login_failed", user_id=user_id)
+        locked = 0.0
+        for key in _throttle_keys(request, user_id):
+            locked = max(locked, _throttle().record_failure(key))
+        log.info("login_failed", user_id=user_id, locked_out_s=locked or None)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, _BAD_CREDENTIALS)
+
+    for key in _throttle_keys(request, user_id):
+        _throttle().reset(key)
     log.info("login", user_id=user_id)
     return _issue(response, repos, settings, user)
 
@@ -211,8 +267,14 @@ def change_password(
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
 
+    # Throttled like login: a stolen token must not buy unlimited guesses at the
+    # password that would let it be made permanent.
+    _guard_throttle(request, user.user_id)
+
     stored = repos.credentials.get(user.user_id)
     if stored is None or not verify_password(body.current_password, stored):
+        for key in _throttle_keys(request, user.user_id):
+            _throttle().record_failure(key)
         log.info("password_change_failed", user_id=user.user_id)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "current password is incorrect")
 
