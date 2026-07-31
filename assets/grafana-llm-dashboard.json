@@ -1,0 +1,184 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus scraping both the coach (:8000) and llama-server (:8001).",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "title": "AI English Coach — LLM serving (LLMOps)",
+  "tags": ["english-coach", "llm", "llmops"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Throughput (tokens/sec)",
+      "description": "Generation is what the learner waits on; prompt eval is what a long context costs before a single token comes back.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "min": 0, "unit": "none" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "llamacpp:predicted_tokens_seconds",
+          "legendFormat": "generation",
+          "refId": "A"
+        },
+        {
+          "expr": "llamacpp:prompt_tokens_seconds",
+          "legendFormat": "prompt eval",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "LLM request latency p95 / p50",
+      "description": "As the app sees it, per served model and path (hot dialogue vs cold assessment).",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "min": 0, "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(llm_request_duration_seconds_bucket[5m])) by (le, path))",
+          "legendFormat": "p95 {{path}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(llm_request_duration_seconds_bucket[5m])) by (le, path))",
+          "legendFormat": "p50 {{path}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Context high-water mark (of 4096)",
+      "description": "Largest prompt llama-server has seen, against the -c it was started with. Approaching 1.0 means turns are about to be truncated — the coach starts forgetting the start of the conversation. Note: this build exposes no kv_cache_usage_ratio, so the high-water mark is the honest proxy.",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.75 },
+              { "color": "red", "value": 0.9 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "llamacpp:n_tokens_max / 4096", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "title": "Requests: processing vs deferred",
+      "description": "Deferred is llama.cpp's own queue — a turn waiting here has not reached the model yet.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+      "fieldConfig": { "defaults": { "min": 0, "unit": "none" }, "overrides": [] },
+      "targets": [
+        { "expr": "llamacpp:requests_processing", "legendFormat": "processing", "refId": "A" },
+        { "expr": "llamacpp:requests_deferred", "legendFormat": "deferred", "refId": "B" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Tokens generated (rate)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+      "fieldConfig": { "defaults": { "min": 0, "unit": "none" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "rate(llamacpp:tokens_predicted_total[1m])",
+          "legendFormat": "generated/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(llamacpp:prompt_tokens_total[1m])",
+          "legendFormat": "prompt/s",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Hot-path first audio p95 (budget 0.3s)",
+      "description": "The number the whole hot path exists to protect: finalized speech to first TTS chunk.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "min": 0, "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(hotpath_first_audio_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "A"
+        },
+        { "expr": "vector(0.3)", "legendFormat": "budget", "refId": "B" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Hot-path stage latency p95",
+      "description": "Where a slow turn actually went: STT, LLM, or first TTS chunk.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "min": 0, "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(hotpath_stage_seconds_bucket[5m])) by (le, stage))",
+          "legendFormat": "{{stage}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Cold-path queue depth",
+      "description": "Assessments waiting. Sustained depth with an idle GPU means the guard is deferring — check the degradation level.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 22 },
+      "fieldConfig": { "defaults": { "min": 0, "unit": "none" }, "overrides": [] },
+      "targets": [{ "expr": "coldpath_queue_depth", "legendFormat": "queued", "refId": "A" }]
+    },
+    {
+      "id": 9,
+      "title": "Degradation level (0..4)",
+      "description": "Peak across VRAM, GPU util, RAM, CPU and disk — not VRAM alone. At >=1 all cold-path work is deferred.",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 22 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 4, "unit": "none" }, "overrides": [] },
+      "targets": [{ "expr": "degradation_level", "legendFormat": "level", "refId": "A" }]
+    },
+    {
+      "id": 10,
+      "title": "Models loaded",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 22 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [{ "expr": "sum(model_loaded)", "legendFormat": "loaded", "refId": "A" }]
+    }
+  ]
+}

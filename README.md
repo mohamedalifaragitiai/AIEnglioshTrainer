@@ -258,10 +258,39 @@ cd frontend-next && npm run typecheck && npm run build
 
 - **CI:** `.github/workflows/ci.yml` runs the backend (uv `--frozen` → ruff → pytest
   → soak) and the dashboard (npm ci → typecheck → build) on push/PR. No Docker.
-- **Monitoring:** `/metrics` (Prometheus) is always on. `assets/prometheus.yml` is a
-  ready scrape config; import `assets/grafana-dashboard.json` for panels covering the
-  96% ceiling, degradation level, hot-path first-audio p95, cold-path queue/deferrals,
-  guard sample cost, and models loaded.
+- **Monitoring:** `/metrics` (Prometheus) is always on, and stays open even when
+  auth is enforced — a scraper that needs a session token is one that silently
+  stops working when the token expires.
+
+### The local LLMOps stack (no Docker)
+
+`assets/prometheus.yml` scrapes **two** jobs: the app on `:8000` and
+**llama-server on `:8001`** (start it with `--metrics`, or that job scrapes a
+501). Two dashboards live in `assets/`:
+
+| Dashboard | Answers |
+|---|---|
+| `grafana-dashboard.json` | Is the box healthy? 96% ceiling, degradation ladder, guard sample cost, cold-path queue |
+| `grafana-llm-dashboard.json` | Is the *model* healthy? tokens/sec, prompt-eval rate, context high-water mark, queued requests, LLM latency p95, first-audio budget |
+
+Run Prometheus and Grafana straight from their release archives — no Docker, no
+service install:
+
+```bash
+prometheus --config.file=assets/prometheus.yml --storage.tsdb.path=<data>
+grafana server --homepath <grafana-dist> --config <your grafana.ini>
+```
+
+Grafana must not use its default port 3000 — the Next.js dashboard already owns
+it. On the reference M: box `start-monitoring.sh` does all of this (Prometheus
+`:9090`, Grafana `:3001`, both dashboards provisioned against a
+`coach-prometheus` datasource) and keeps every byte on M:.
+
+> The dashboards in `assets/` are in Grafana's **import** format — a `__inputs`
+> block with `${DS_PROMETHEUS}` placeholders, which the import UI resolves for
+> you. File-based *provisioning* does no such substitution, so a provisioning
+> setup must rewrite that placeholder to its datasource uid first, or the panels
+> load pointing at nothing.
 
 ## Golden rules
 

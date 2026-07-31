@@ -1,8 +1,21 @@
-# Minimal Prometheus scrape config for the AI English Coach.
-# The app's /metrics endpoint is mandatory; Prometheus/Grafana are optional.
+# Prometheus scrape config for the AI English Coach — the whole local stack.
 #
 #   prometheus --config.file=assets/prometheus.yml
 #
+# On the reference box start-monitoring.sh does this for you and brings up
+# Grafana with the dashboards in this directory already provisioned.
+#
+# Two jobs, because "the stack" is two processes:
+#   english-coach — the app: the 96% ceiling, the degradation ladder, hot-path
+#                   first-audio latency, cold-path queue depth and deferrals.
+#   llama-cpp     — the LLM server: tokens/sec, prompt-eval rate, KV cache
+#                   pressure, queued requests. Requires llama-server to have
+#                   been started with --metrics, or this job scrapes a 404.
+#
+# Both endpoints stay unauthenticated even when COACH_AUTH_REQUIRED is on: they
+# report the machine and never a learner, and a scraper that needs a session
+# token is a scraper that silently stops working the day the token expires.
+
 global:
   scrape_interval: 5s
   evaluation_interval: 15s
@@ -11,4 +24,9 @@ scrape_configs:
   - job_name: english-coach
     static_configs:
       - targets: ["127.0.0.1:8000"]
+    metrics_path: /metrics
+
+  - job_name: llama-cpp
+    static_configs:
+      - targets: ["127.0.0.1:8001"]
     metrics_path: /metrics
