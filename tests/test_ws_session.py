@@ -175,13 +175,32 @@ def test_ws_bye_aborts_an_in_flight_turn():
 
 def test_ws_turn_flows_to_cold_path_assessment():
     """A live turn emits UtteranceFinalized -> the cold-path worker scores it ->
-    an assessment is stored (deterministic evaluators run even without the LLM)."""
+    an assessment is stored (deterministic evaluators run even without the LLM).
+
+    The guard is pinned to an idle machine for the duration. This test asserts
+    what the cold path does when it is *allowed to run*; left on the real
+    sampler it also asserts that the developer's machine happens to be quiet,
+    and fails on a box sitting above ladder_l1 for reasons that have nothing to
+    do with the code — the guard defers the job, re-queues it with backoff for
+    up to coldpath_max_defer_s (60s), and the 2.5s poll below gives up first.
+    """
     import time
+
+    from tests.conftest import FakeSampler
 
     with TestClient(app) as client:
         uid = "ws" + new_id()[:8]
         client.post("/users", json={"user_id": uid, "display_name": "WS"})
         client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
+
+        # Swap the sampler, not just the level: the guard's background loop keeps
+        # sampling every second and would put a real reading straight back.
+        guard = client.app.state.guard
+        guard._sampler = FakeSampler()
+        guard._window.clear()
+        for _ in range(guard._window.maxlen or 3):
+            guard.feed(guard._sampler.sample())
+        assert guard.degradation_level == 0, "the guard must be idle or this proves nothing"
 
         with client.websocket_connect(f"/ws/session?user_id={uid}") as ws:
             ws.receive_json()  # session
