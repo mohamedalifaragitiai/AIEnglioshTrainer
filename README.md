@@ -204,6 +204,17 @@ the practice socket comes free. Expose the Next.js app separately
 (`--https=8443` → `:3000`) if you want it, and then set
 `NEXT_PUBLIC_API_BASE=https://<host>` plus a matching `COACH_CORS_ORIGINS`.
 
+If your tailnet has no TLS certificates yet, serve plain HTTP instead — the
+tunnel is encrypted by WireGuard either way, so this is a reasonable interim:
+
+```bash
+tailscale serve --bg --http=80 http://127.0.0.1:8000
+# -> http://<device>.<tailnet>.ts.net/   (set COACH_AUTH_COOKIE_SECURE=false)
+```
+
+Serve routes by Host header, so use the MagicDNS name — the bare `100.x` address
+404s.
+
 Three things to get right first:
 
 1. **Enable HTTPS certificates** for the tailnet, once:
