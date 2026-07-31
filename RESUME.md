@@ -67,7 +67,9 @@ need no token. If you turn it on, create the account *first* (the seeded
 `abu_ali` has no password; signing up with that id claims the profile and keeps
 its history), or the UI will hold you at a sign-in screen you cannot pass.
 `live_turn_check.py` connects anonymously and will fail with close code 4401
-until it is given a token. See the README's *Accounts* section.
+until it is given a token. The verification curls above keep working either way:
+`/healthz`, `/metrics`, `/guard`, `/stats` and `/models` report the machine, not
+a learner, so they stay open. See the README's *Accounts* section.
 
 ## Tests & CI
 

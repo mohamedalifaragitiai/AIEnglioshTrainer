@@ -96,8 +96,10 @@ has a password, signup returns 409 and only login gets in.
 With enforcement on: every data route needs `Authorization: Bearer <token>` (or
 the session cookie), a learner may only read their own `/users/{id}/...`,
 `/ws/session` requires `?token=`, and new profiles come from signup rather than
-`POST /users`. `/healthz`, `/metrics` and `/guard` stay open so Prometheus and
-the Grafana dashboard keep scraping.
+`POST /users`. The machine-facing endpoints stay open — `/healthz`, `/metrics`,
+`/guard`, `/stats` and `/models` report VRAM, degradation level and which models
+are resident, never learner data — so Prometheus, the Grafana dashboard and the
+restart checks in `RESUME.md` keep working unauthenticated.
 
 ### Frontend
 

@@ -186,10 +186,11 @@ def test_enforced_api_requires_a_token():
             assert client.get(f"/users/{uid}").status_code == 401
             assert client.get(f"/users/{uid}", headers=auth).status_code == 200
             assert client.get(f"/users/{uid}/progress", headers=auth).status_code == 200
-            # Ops endpoints stay open — they carry no learner data and the
-            # dashboards scrape them unauthenticated.
-            assert client.get("/healthz").status_code == 200
-            assert client.get("/metrics").status_code == 200
+            # Ops endpoints stay open — they report the machine, never a
+            # learner, and Prometheus/Grafana plus the RESUME.md restart checks
+            # all hit them without a token.
+            for open_path in ("/healthz", "/metrics", "/guard", "/stats", "/models"):
+                assert client.get(open_path).status_code == 200, open_path
             status = client.get("/auth/status", headers=auth).json()
             assert status["auth_required"] is True and status["user_id"] == uid
 

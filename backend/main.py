@@ -187,7 +187,22 @@ app.add_middleware(
 # purpose: the served UI *is* the login screen, so gating it would leave nowhere
 # to sign in. It ships no data of its own — every figure on it comes from an API
 # call that is gated.
-_OPEN_PATHS = ("/auth", "/healthz", "/metrics", "/guard", "/docs", "/redoc", "/openapi.json")
+#
+# /stats and /models sit here with /guard for the same reason: they report the
+# machine (VRAM, degradation level, which models are resident), never a learner.
+# Gating them broke the restart checks in RESUME.md and would have made an
+# unauthenticated Monitor view impossible, for no privacy gained.
+_OPEN_PATHS = (
+    "/auth",
+    "/healthz",
+    "/metrics",
+    "/guard",
+    "/stats",
+    "/models",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+)
 
 
 def _path_owner(path: str) -> str | None:
