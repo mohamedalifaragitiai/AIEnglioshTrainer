@@ -185,6 +185,20 @@ higher.
 > WSL2/Linux (or a remote localhost). The app itself is pure-Python and talks to it
 > over HTTP, so the FastAPI app runs fine natively on Windows.
 
+## Versioning
+
+The running build reports itself at **`/version`** (`{"version", "git_sha"}`,
+open like the other ops endpoints) and both UIs show it in the header. The
+version lives in `config/version.py`, is mirrored in `pyproject.toml`, and every
+release has an entry in [`CHANGELOG.md`](CHANGELOG.md) — tests fail if those
+three disagree.
+
+SemVer, read as an application rather than a library: **major** = an existing
+install cannot move forward without operator action, **minor** = new capability
+an install absorbs without ceremony, **patch** = fixes and copy. To release:
+bump `config/version.py` + `pyproject.toml`, add the changelog entry, then
+`git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z`.
+
 ## Build phases
 
 The system is runnable after each phase.

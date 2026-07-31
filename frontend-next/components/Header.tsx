@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useUser } from "@/app/user-context";
 
@@ -21,6 +22,16 @@ export function Header() {
   } = useUser();
   const pathname = usePathname();
   const onAuthPage = pathname === "/login" || pathname === "/signup";
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Open endpoint, so this resolves on the login page too — "which build is
+    // this?" is a question you ask before you can sign in.
+    api
+      .version()
+      .then((v) => setVersion(v.version))
+      .catch(() => setVersion(null));
+  }, []);
 
   const newUser = async () => {
     const id = prompt("New learner id (slug, e.g. abu_ali):");
@@ -64,6 +75,7 @@ export function Header() {
         <div className="px-6 py-3">
           <h1 className="text-lg font-semibold">
             AI English <span className="text-accent">Coach</span>
+            {version && <span className="pill bg-panel2 ml-3">v{version}</span>}
           </h1>
         </div>
       </header>
@@ -76,6 +88,7 @@ export function Header() {
         <h1 className="text-lg font-semibold">
           AI English <span className="text-accent">Coach</span>
         </h1>
+        {version && <span className="pill bg-panel2 text-muted">v{version}</span>}
         <span className="pill bg-panel2 text-accent2">
           Level {currentLevel} · {LEVEL_NAMES[currentLevel]}
         </span>

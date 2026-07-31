@@ -46,6 +46,7 @@ from backend.persistence.repositories import UserRepository
 from backend.serving.adapters import build_default_registry
 from backend.serving.base import ModelKind
 from config.settings import get_settings
+from config.version import VERSION, version_info
 
 settings = get_settings()
 configure_logging(level=settings.log_level, json_logs=settings.log_json)
@@ -146,7 +147,7 @@ async def _on_assessment_ready(ev: AssessmentReady) -> None:
 
 app = FastAPI(
     title="AI English Coach",
-    version="0.1.0",
+    version=VERSION,
     summary="Fully offline, resource-governed English speaking & listening coach.",
     lifespan=lifespan,
 )
@@ -156,6 +157,17 @@ app = FastAPI(
 async def healthz() -> dict:
     """Liveness probe."""
     return {"status": "ok", "app": settings.app_name}
+
+
+@app.get("/version", tags=["ops"])
+async def version_endpoint() -> dict:
+    """What is actually running here.
+
+    Open like the other ops endpoints: when a deploy looks wrong, the first
+    question is which build answered, and needing a session to ask makes that
+    harder at exactly the wrong moment.
+    """
+    return version_info()
 
 
 @app.get("/metrics", tags=["ops"])
@@ -200,6 +212,7 @@ _OPEN_PATHS = (
     "/guard",
     "/stats",
     "/models",
+    "/version",
     "/docs",
     "/redoc",
     "/openapi.json",

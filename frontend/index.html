@@ -134,6 +134,7 @@
   <div class="brand"><div class="logo">🎓</div>AI English <span>&nbsp;Coach</span></div>
   <span class="lvl-badge" id="lvlBadge">Level —</span>
   <span class="pill" id="modelsPill"><span class="dot"></span>models…</span>
+  <span class="pill" id="verPill" title="Running build"></span>
   <div class="spacer"></div>
   <label class="muted" for="userSel">Learner</label>
   <select id="userSel"></select>
@@ -373,6 +374,12 @@ async function boot(){
   $('#signOutBtn').classList.toggle('hidden',!signedInAs);
   // With auth on, accounts come from signup — POST /users is refused.
   $('#newUserBtn').classList.toggle('hidden',authRequired);
+
+  // Which build is answering. Open endpoint, so it renders even signed out.
+  try{const v=await api.get('/version');
+    $('#verPill').textContent='v'+v.version;
+    if(v.git_sha)$('#verPill').title=`Running build — v${v.version} (${v.git_sha})`;}
+  catch{$('#verPill').classList.add('hidden');}
 
   try{const m=await api.get('/models');const on=m.some(x=>x.status==='loaded');
     $('#modelsPill').className='pill '+(on?'on':'off');$('#modelsPill').innerHTML=`<span class="dot"></span>models: ${on?'loaded':'off'}`;}

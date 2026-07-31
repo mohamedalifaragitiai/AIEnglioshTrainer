@@ -1,6 +1,6 @@
 [project]
 name = "english-coach"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fully offline, self-hosted AI English Speaking & Listening Coach (resource-governed, no Docker)."
 readme = "README.md"
 requires-python = ">=3.11"
