@@ -147,6 +147,8 @@
   <button data-tab="practice">Practice</button>
   <button data-tab="report">Report</button>
   <button data-tab="monitor">Monitor</button>
+  <!-- Revealed by boot() only when /auth/status reports is_admin. -->
+  <button data-tab="admin" id="adminTab" class="hidden">Admin</button>
 </nav>
 
 <main>
@@ -244,6 +246,22 @@
       <div class="muted" id="budgetLine" style="font-size:12px;margin-top:10px"></div>
     </div>
   </section>
+
+  <!-- ADMIN (every learner — only rendered for an admin account) -->
+  <section id="admin" class="hidden">
+    <div class="grid tiles" id="adminTiles"></div>
+    <div class="card" style="margin-top:16px">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0">All learners</h3>
+        <div class="row">
+          <input id="adminSearch" placeholder="Filter by name or id" style="min-width:200px"/>
+          <button id="adminRefresh">Refresh</button>
+        </div>
+      </div>
+      <div class="muted" id="adminNote" style="font-size:12px;margin:8px 0 4px"></div>
+      <div style="overflow-x:auto"><table id="adminTable"></table></div>
+    </div>
+  </section>
 </main>
 
 <!-- Shown after End: the cold path scores the session, then hands over to the report. -->
@@ -315,7 +333,7 @@ const SKILL_COLORS={pronunciation:'#2dd4bf',grammar:'#818cf8',vocabulary:'#f472b
 let currentUser=null, currentUserName='', currentLevel=0, topic='';
 
 // --- auth ------------------------------------------------------------------
-let authRequired=false, signedInAs=null, minPwLen=8, gateMode='login';
+let authRequired=false, signedInAs=null, minPwLen=8, gateMode='login', isAdmin=false;
 
 function showGate(mode){
   gateMode=mode||gateMode;
@@ -374,6 +392,10 @@ async function boot(){
   $('#signOutBtn').classList.toggle('hidden',!signedInAs);
   // With auth on, accounts come from signup — POST /users is refused.
   $('#newUserBtn').classList.toggle('hidden',authRequired);
+  // The Admin tab is a convenience, not the access control: /admin/overview
+  // refuses a non-admin regardless of whether this button is on screen.
+  isAdmin=!!(st&&st.is_admin);
+  $('#adminTab').classList.toggle('hidden',!isAdmin);
 
   // Which build is answering. Open endpoint, so it renders even signed out.
   try{const v=await api.get('/version');
@@ -404,11 +426,69 @@ $('#seedBtn').addEventListener('click',async()=>{if(!currentUser)return alert('S
 // tabs
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-  ['dash','practice','report','monitor'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  ['dash','practice','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
   if(b.dataset.tab==='dash')renderDashboard();
   if(b.dataset.tab==='report')renderReport();
+  if(b.dataset.tab==='admin')renderAdmin();
   if(b.dataset.tab==='monitor')startMonitor();else stopMonitor();
 }));
+
+// --- admin: every learner, their activity and their scores -----------------
+let adminData=null;
+function fmtWhen(iso){
+  if(!iso)return '—';
+  const d=new Date(iso), days=Math.floor((Date.now()-d.getTime())/86400000);
+  if(days<=0)return 'today';
+  if(days===1)return 'yesterday';
+  if(days<30)return days+' days ago';
+  return d.toISOString().slice(0,10);
+}
+async function renderAdmin(){
+  $('#adminNote').textContent='Loading…';
+  try{adminData=await api.get('/admin/overview');}
+  catch(e){$('#adminNote').textContent='Could not load: '+e.message;return;}
+  const t=adminData.totals;
+  $('#adminTiles').innerHTML=[
+    ['Learners',t.users,`${t.admins} admin${t.admins===1?'':'s'}`],
+    ['Active (7 days)',t.active_7d,`${t.active_30d} in 30 days`],
+    ['Practice sessions',t.sessions,`${t.utterances} utterances`],
+    ['Assessments',t.assessments,t.avg_overall!=null?`avg overall ${t.avg_overall}`:'—'],
+    ['Never practised',t.never_practised,'no session yet'],
+  ].map(([l,v,s])=>`<div class="card tile"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+  drawAdminTable();
+}
+function drawAdminTable(){
+  if(!adminData)return;
+  const q=($('#adminSearch').value||'').trim().toLowerCase();
+  const rows=adminData.users.filter(u=>!q||u.user_id.toLowerCase().includes(q)||(u.display_name||'').toLowerCase().includes(q));
+  $('#adminNote').textContent=`${rows.length} of ${adminData.users.length} learners · click a row to open that learner's dashboard`;
+  const head='<tr><th>Learner</th><th>Level</th><th>Streak</th><th>Sessions</th><th>Utterances</th>'
+    +'<th>Assessments</th><th>Latest</th><th>Average</th><th>Last active</th><th>Account</th></tr>';
+  // esc() everything a learner controls. Signup is open on a public deployment,
+  // so display_name and user_id are attacker-supplied strings being rendered
+  // into the ADMIN's browser — the one session worth stealing.
+  $('#adminTable').innerHTML=head+rows.map(u=>`<tr data-uid="${esc(u.user_id)}" style="cursor:pointer">
+    <td><b>${esc(u.display_name||u.user_id)}</b><div class="muted" style="font-size:11.5px">${esc(u.user_id)}</div></td>
+    <td>${u.current_level} · ${LEVELS[u.current_level]||''}</td>
+    <td>${u.streak_days}</td><td>${u.sessions}</td><td>${u.utterances}</td><td>${u.assessments}</td>
+    <td>${u.latest_overall!=null?u.latest_overall:'—'}</td>
+    <td>${u.avg_overall!=null?u.avg_overall:'—'}</td>
+    <td>${fmtWhen(u.last_active)}</td>
+    <td>${u.is_admin?'<span class="pill">admin</span>':(u.has_password?'learner':'<span class="muted">no password</span>')}</td>
+  </tr>`).join('');
+  // Drilling in reuses the existing per-learner views rather than duplicating
+  // them: an admin already passes the ownership check for anyone.
+  $('#adminTable').querySelectorAll('tr[data-uid]').forEach(tr=>tr.addEventListener('click',()=>{
+    currentUser=tr.dataset.uid;
+    const opt=[...$('#userSel').options].find(o=>o.value===currentUser);
+    if(opt)$('#userSel').value=currentUser;
+    const u=adminData.users.find(x=>x.user_id===currentUser);
+    currentUserName=u?u.display_name:'';currentLevel=u?u.current_level:0;
+    document.querySelector('nav button[data-tab="dash"]').click();
+  }));
+}
+$('#adminSearch').addEventListener('input',drawAdminTable);
+$('#adminRefresh').addEventListener('click',renderAdmin);
 
 function renderAll(){renderLevels();renderDashboard();$('#practiceLvl').textContent='Level '+currentLevel+' · '+LEVELS[currentLevel];
   $('#lvlBadge').textContent='Level '+currentLevel+' · '+LEVELS[currentLevel];}

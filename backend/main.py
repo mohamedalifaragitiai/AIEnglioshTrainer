@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.websockets import WebSocket
 
+from backend.api import admin as admin_router
 from backend.api import assessments as assessments_router
 from backend.api import auth as auth_router
 from backend.api import dev as dev_router
@@ -273,6 +274,9 @@ async def ws_session_endpoint(websocket: WebSocket) -> None:
 
 # Signup/login. Registered first and always open — the gate cannot be behind itself.
 app.include_router(auth_router.router)
+
+# Cohort views. Enforces admin itself, so it is safe with auth_required off too.
+app.include_router(admin_router.router)
 
 # Per-user profiles, sessions/assessments, and progress queries.
 app.include_router(users_router.router)
