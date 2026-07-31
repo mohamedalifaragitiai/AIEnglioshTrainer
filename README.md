@@ -204,16 +204,29 @@ the practice socket comes free. Expose the Next.js app separately
 (`--https=8443` → `:3000`) if you want it, and then set
 `NEXT_PUBLIC_API_BASE=https://<host>` plus a matching `COACH_CORS_ORIGINS`.
 
-If your tailnet has no TLS certificates yet, serve plain HTTP instead — the
-tunnel is encrypted by WireGuard either way, so this is a reasonable interim:
+**Without tailnet certificates there is no browser-usable `.ts.net` URL.**
+`ts.net` is on the HSTS preload list, so a browser rewrites `http://…ts.net/` to
+`https://` before the request leaves — and with no certificate nothing is
+listening on 443, giving `ERR_CONNECTION_REFUSED`. `tailscale serve --http=80`
+still works for `curl` and scripts (which honour the scheme you give them), so
+verifying this path with curl alone will tell you it works when it does not.
+Serve also routes by Host header: the bare `100.x` address 404s.
+
+The interim that *does* work in a browser is the tailnet IP, which carries no
+HSTS entry — bind the app so that address answers, and scope the firewall to
+Tailscale's range so this does not also publish port 8000 to the local Wi-Fi:
 
 ```bash
-tailscale serve --bg --http=80 http://127.0.0.1:8000
-# -> http://<device>.<tailnet>.ts.net/   (set COACH_AUTH_COOKIE_SECURE=false)
+# .env:  COACH_APP_HOST=0.0.0.0   COACH_AUTH_COOKIE_SECURE=false
+# elevated, once — 100.64.0.0/10 is Tailscale's range, so tailnet peers only:
+netsh advfirewall firewall add rule name="coach (tailnet 8000)" dir=in \
+  action=allow protocol=TCP localport=8000 remoteip=100.64.0.0/10 profile=any
+# -> http://100.x.y.z:8000/
 ```
 
-Serve routes by Host header, so use the MagicDNS name — the bare `100.x` address
-404s.
+Enabling the certificates removes both workarounds: `serve` proxies through
+`tailscaled`, which already has firewall permission, so no rule is needed and
+the app can go back to loopback-only.
 
 Three things to get right first:
 
