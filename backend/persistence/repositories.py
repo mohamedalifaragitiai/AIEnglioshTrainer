@@ -331,6 +331,15 @@ class AssessmentRepository:
                 "SELECT COUNT(*) FROM assessments WHERE user_id=?", (user_id,)
             ).fetchone()[0]
 
+    def list_for_session(self, session_id: str) -> list[Assessment]:
+        with self.db.connection() as con:
+            rows = con.execute(
+                f"SELECT {_ASSESS_COLS} FROM assessments WHERE session_id=?"
+                " ORDER BY created_at",
+                (session_id,),
+            ).fetchall()
+        return [Assessment(**r) for r in rows]
+
     def exists_for_utterance(self, utterance_id: str) -> bool:
         """Cold-path idempotency: has this utterance already been scored?"""
         with self.db.connection() as con:

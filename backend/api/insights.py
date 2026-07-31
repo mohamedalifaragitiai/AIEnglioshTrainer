@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
+from backend.coldpath.conversation import ConversationAnalyzer
 from backend.coldpath.insights import InsightsService
 from backend.coldpath.reporting import REPORT_FORMATS, content_type
 from backend.domain.models import Feedback, GapItem, ImprovementItem, Plan
@@ -20,6 +21,41 @@ def get_insights(request: Request) -> InsightsService:
 def _require_user(svc: InsightsService, user_id: str) -> None:
     if not svc.users.exists(user_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"user {user_id!r} not found")
+
+
+@router.get("/conversations")
+def conversations(user_id: str, request: Request, limit: int = 100) -> list[dict]:
+    """Every practice conversation, newest first — one row each."""
+    svc = get_insights(request)
+    _require_user(svc, user_id)
+    return ConversationAnalyzer(request.app.state.db).list_for_user(user_id, limit=limit)
+
+
+@router.get("/conversations/{session_id}")
+def conversation_report(user_id: str, session_id: str, request: Request) -> dict:
+    """Full analysis of one conversation: every turn, its corrections, its scores.
+
+    Assembled from stored rows, never a fresh LLM call — opening a report five
+    times must not cost five inference runs, and it has to render when the model
+    server is down.
+    """
+    svc = get_insights(request)
+    _require_user(svc, user_id)
+    report = ConversationAnalyzer(request.app.state.db).analyze(session_id)
+    if report is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
+    # The session id is opaque, so ownership cannot be read off the path.
+    if report["user_id"] != user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
+    return report
+
+
+@router.get("/analysis")
+def full_analysis(user_id: str, request: Request, limit: int = 200) -> dict:
+    """Across every conversation: totals, averages, measured trend, what to fix."""
+    svc = get_insights(request)
+    _require_user(svc, user_id)
+    return ConversationAnalyzer(request.app.state.db).analyze_all(user_id, limit=limit)
 
 
 @router.get("/gaps", response_model=list[GapItem])
