@@ -116,6 +116,28 @@ def test_signup_validation(payload, expected):
         assert client.post("/auth/signup", json=payload).status_code == expected
 
 
+def test_an_email_works_as_a_learner_id():
+    """People reach for their email at a login screen — and did, then got a 401."""
+    with TestClient(app) as client:
+        email = f"{_uid()}@example.com"
+        assert _signup(client, email).status_code == 201
+        # And capitalisation on the way back in is not a wrong password.
+        r = client.post("/auth/login", json={"user_id": email.upper(), "password": PASSWORD})
+        assert r.status_code == 200
+        assert r.json()["user"]["user_id"] == email
+
+
+def test_ids_that_would_escape_the_report_directory_are_still_refused():
+    """`user_id` is interpolated into a report filename in coldpath/insights.py."""
+    with TestClient(app) as client:
+        for bad in ("../etc/passwd", "..", "a/b", "a\\b", "c:evil", "Has Spaces!"):
+            r = client.post(
+                "/auth/signup",
+                json={"user_id": bad, "display_name": "x", "password": PASSWORD},
+            )
+            assert r.status_code == 422, f"{bad!r} was accepted"
+
+
 def test_second_signup_for_the_same_account_conflicts():
     with TestClient(app) as client:
         uid = _uid()

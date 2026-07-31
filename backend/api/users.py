@@ -14,7 +14,24 @@ from config.settings import get_settings
 router = APIRouter(prefix="/users", tags=["users"])
 
 # Public: /auth/signup validates new account ids against the same rule.
-USER_ID_SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+#
+# Email addresses are allowed (people reach for one at a login screen), hence
+# '@', '.' and '+'. What is still excluded matters: no '/', '\' or ':', and the
+# first character must be alphanumeric — `user_id` is interpolated into a report
+# filename in coldpath/insights.py, so an id like '..' or 'a/b' would escape the
+# report directory. Ids are lowercased before they get here, so 'A@x' and 'a@x'
+# cannot become two accounts.
+USER_ID_SLUG = re.compile(r"^[a-z0-9][a-z0-9._@+-]{1,63}$")
+
+USER_ID_RULE = (
+    "user_id must be 2-64 characters, start with a letter or digit, and contain "
+    "only letters, digits, '.', '_', '-', '+' or '@' (an email address is fine)"
+)
+
+
+def normalize_user_id(user_id: str) -> str:
+    """Trim and lowercase, so 'Abu_Ali ' and 'abu_ali' are the same account."""
+    return user_id.strip().lower()
 
 
 class CreateUserRequest(BaseModel):
@@ -32,15 +49,13 @@ class UpdateUserRequest(BaseModel):
 
 @router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
 def create_user(body: CreateUserRequest, repos: Repositories = Depends(get_repos)) -> User:
-    if not USER_ID_SLUG.match(body.user_id):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "user_id must be a slug: lowercase letters, digits, '-' or '_', 2-64 chars",
-        )
-    if repos.users.exists(body.user_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, f"user {body.user_id!r} already exists")
+    user_id = normalize_user_id(body.user_id)
+    if not USER_ID_SLUG.match(user_id):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, USER_ID_RULE)
+    if repos.users.exists(user_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"user {user_id!r} already exists")
     return repos.users.create(
-        body.user_id,
+        user_id,
         body.display_name,
         current_level=body.current_level,
         settings_json=body.settings_json,

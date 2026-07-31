@@ -47,7 +47,10 @@ class Settings(BaseSettings):
     # their own profile. Signup/login/logout work either way.
     auth_required: bool = False
     auth_session_ttl_hours: int = Field(default=720, ge=1)  # 30 days
-    auth_min_password_length: int = Field(default=8, ge=4)
+    # ge=1, not ge=4: on a single-learner box bound to 127.0.0.1 the operator is
+    # entitled to decide a short password is fine, and a floor that refuses to
+    # boot is a worse failure than a weak password nobody else can reach.
+    auth_min_password_length: int = Field(default=8, ge=1)
     # PBKDF2-HMAC-SHA256 rounds. Stdlib on purpose: bcrypt/argon2 would each be a
     # new host-specific wheel, and the golden rules keep this env to uv.lock.
     # Tests lower it (hashing at full cost would blow the ~15s suite budget).

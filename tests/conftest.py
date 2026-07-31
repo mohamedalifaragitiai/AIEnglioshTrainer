@@ -28,6 +28,10 @@ os.environ["COACH_VLLM_VRAM_FRACTION"] = "0.68"
 # the hashing round-trips.
 os.environ["COACH_AUTH_REQUIRED"] = "false"
 os.environ["COACH_AUTH_HASH_ITERATIONS"] = "1000"
+# Pinned for the same reason as the rest: a host whose .env relaxes the minimum
+# (a local box may set it to 1) would otherwise turn the "password too short"
+# case into a successful signup and fail a test that is about the rule itself.
+os.environ["COACH_AUTH_MIN_PASSWORD_LENGTH"] = "8"
 
 import pytest  # noqa: E402
 

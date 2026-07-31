@@ -271,7 +271,7 @@
     <h3 id="authTitle">Sign in</h3>
     <p id="authIntro">Your profile, history and scores stay on this machine.</p>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px">
-      <input id="authUser" placeholder="Learner id (e.g. abu_ali)" autocomplete="username"/>
+      <input id="authUser" placeholder="Learner id or email" autocomplete="username"/>
       <input id="authName" class="hidden" placeholder="Display name"/>
       <input id="authPass" type="password" placeholder="Password" autocomplete="current-password"/>
       <div id="authErr" class="banner hidden"></div>
@@ -319,7 +319,9 @@ function showGate(mode){
   const signup=gateMode==='signup';
   $('#authTitle').textContent=signup?'Create your account':'Sign in';
   $('#authIntro').textContent=signup
-    ? `Pick a learner id and a password of at least ${minPwLen} characters.`
+    ? (minPwLen>1
+        ? `Pick a learner id and a password of at least ${minPwLen} characters.`
+        : 'Pick a learner id and a password.')
     : 'Your profile, history and scores stay on this machine.';
   $('#authName').classList.toggle('hidden',!signup);
   $('#authPass').setAttribute('autocomplete',signup?'new-password':'current-password');

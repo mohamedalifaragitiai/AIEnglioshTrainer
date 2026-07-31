@@ -53,14 +53,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
       <form onSubmit={submit} className="flex flex-col gap-3">
         <label className="text-sm text-muted" htmlFor="user_id">
-          Learner id
+          Learner id or email
         </label>
         <input
           id="user_id"
           className="btn text-left"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
-          placeholder="abu_ali"
+          placeholder="abu_ali or you@example.com"
           autoComplete="username"
           autoFocus
           required
@@ -94,7 +94,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           minLength={isSignup ? minPasswordLength : undefined}
           required
         />
-        {isSignup && (
+        {/* No point showing "at least 1 characters" when the server has no real
+            minimum — the hint only earns its space when it constrains you. */}
+        {isSignup && minPasswordLength > 1 && (
           <span className="text-xs text-muted">
             At least {minPasswordLength} characters.
           </span>

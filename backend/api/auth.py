@@ -110,39 +110,38 @@ def signup(
     response: Response,
     repos: Repositories = Depends(get_repos),
 ) -> AuthSession:
-    from backend.api.users import USER_ID_SLUG  # local import: avoids a cycle
+    # Local import: avoids a cycle (users.py imports this module's deps).
+    from backend.api.users import USER_ID_RULE, USER_ID_SLUG, normalize_user_id
 
     settings = get_settings()
-    if not USER_ID_SLUG.match(body.user_id):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "user_id must be a slug: lowercase letters, digits, '-' or '_', 2-64 chars",
-        )
+    user_id = normalize_user_id(body.user_id)
+    if not USER_ID_SLUG.match(user_id):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, USER_ID_RULE)
     if len(body.password) < settings.auth_min_password_length:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             f"password must be at least {settings.auth_min_password_length} characters",
         )
 
-    existing = repos.users.get(body.user_id)
-    if existing is not None and repos.credentials.exists(body.user_id):
+    existing = repos.users.get(user_id)
+    if existing is not None and repos.credentials.exists(user_id):
         raise HTTPException(
-            status.HTTP_409_CONFLICT, f"user {body.user_id!r} already has an account"
+            status.HTTP_409_CONFLICT, f"user {user_id!r} already has an account"
         )
 
     if existing is None:
-        user = repos.users.create(body.user_id, body.display_name)
+        user = repos.users.create(user_id, body.display_name)
         claimed = False
     else:
         # Claiming: keep the profile and its history, take the new display name.
-        user = repos.users.update(body.user_id, display_name=body.display_name) or existing
+        user = repos.users.update(user_id, display_name=body.display_name) or existing
         claimed = True
 
     repos.credentials.set(
-        body.user_id,
+        user_id,
         hash_password(body.password, iterations=settings.auth_hash_iterations),
     )
-    log.info("signup", user_id=body.user_id, claimed_existing_profile=claimed)
+    log.info("signup", user_id=user_id, claimed_existing_profile=claimed)
     return _issue(response, repos, settings, user)
 
 
@@ -152,13 +151,18 @@ def login(
     response: Response,
     repos: Repositories = Depends(get_repos),
 ) -> AuthSession:
+    from backend.api.users import normalize_user_id
+
     settings = get_settings()
-    stored = repos.credentials.get(body.user_id)
-    user = repos.users.get(body.user_id)
+    # Normalize here too, or an id typed with different capitalisation than at
+    # signup would look like a wrong password.
+    user_id = normalize_user_id(body.user_id)
+    stored = repos.credentials.get(user_id)
+    user = repos.users.get(user_id)
     if stored is None or user is None or not verify_password(body.password, stored):
-        log.info("login_failed", user_id=body.user_id)
+        log.info("login_failed", user_id=user_id)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, _BAD_CREDENTIALS)
-    log.info("login", user_id=body.user_id)
+    log.info("login", user_id=user_id)
     return _issue(response, repos, settings, user)
 
 
