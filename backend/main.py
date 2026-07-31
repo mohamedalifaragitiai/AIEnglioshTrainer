@@ -221,9 +221,18 @@ _OPEN_PATHS = (
 
 
 def _path_owner(path: str) -> str | None:
-    """The learner a ``/users/<id>/...`` path belongs to, if any."""
+    """The learner a path names, if it names one.
+
+    Matches ``users/<id>`` wherever it appears, not just at the root: routers
+    mount it under prefixes too, and ``/dev/users/<id>/seed-demo`` slipped past
+    a root-only check — any signed-in learner could write demo history into
+    somebody else's profile.
+    """
     parts = [p for p in path.split("/") if p]
-    return parts[1] if len(parts) >= 2 and parts[0] == "users" else None
+    for i, part in enumerate(parts[:-1]):
+        if part == "users":
+            return parts[i + 1]
+    return None
 
 
 @app.middleware("http")

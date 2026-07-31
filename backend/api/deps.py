@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fastapi import Request
+from fastapi import HTTPException, Request, status
 
 from backend.core.passwords import token_fingerprint
 from backend.persistence.db import Database
@@ -82,6 +82,30 @@ def resolve_token(db: Database, token: str | None) -> str | None:
     if not token:
         return None
     return AuthSessionRepository(db).resolve(token_fingerprint(token))
+
+
+def require_access(request: Request, owner_id: str | None) -> None:
+    """Refuse unless the caller owns this resource (or is an admin).
+
+    For routes keyed by an opaque id — a session, an utterance — rather than by
+    ``/users/{id}/...``. The enforcement middleware can only compare a user id it
+    can *see in the path*, so anything addressed by resource id has to check its
+    own owner after loading it. That gap let one learner read another's session
+    transcripts through /sessions/{id}/utterances.
+
+    No-op when ``auth_required`` is off, matching the rest of the API: that mode
+    is a single-learner install with no identities to separate.
+    """
+    if not get_settings().auth_required:
+        return
+    uid = current_user_id(request)
+    if uid is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "authentication required")
+    if owner_id is not None and uid == owner_id:
+        return
+    if UserRepository(request.app.state.db).is_admin(uid):
+        return
+    raise HTTPException(status.HTTP_403_FORBIDDEN, "not your profile")
 
 
 def current_user_id(request: Request) -> str | None:

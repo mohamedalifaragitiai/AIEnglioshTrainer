@@ -7,10 +7,10 @@ weighted overall for the given ``scoring_model_version`` and advances the user's
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from backend.api.deps import Repositories, get_progress, get_repos
+from backend.api.deps import Repositories, get_progress, get_repos, require_access
 from backend.coldpath.scoring import (
     DIMENSIONS,
     SCORING_MODEL_VERSION,
@@ -61,22 +61,27 @@ def list_sessions(user_id: str, repos: Repositories = Depends(get_repos)) -> lis
 
 
 @router.get("/sessions/{session_id}", response_model=Session)
-def get_session(session_id: str, repos: Repositories = Depends(get_repos)) -> Session:
+def get_session(
+    session_id: str, request: Request, repos: Repositories = Depends(get_repos)
+) -> Session:
     session = repos.sessions.get(session_id)
     if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
+    require_access(request, session.user_id)
     return session
 
 
 @router.post("/sessions/{session_id}/end", response_model=Session)
 def end_session(
     session_id: str,
+    request: Request,
     repos: Repositories = Depends(get_repos),
     progress: ProgressService = Depends(get_progress),
 ) -> Session:
     session = repos.sessions.get(session_id)
     if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
+    require_access(request, session.user_id)
     ended = repos.sessions.end(session_id)
     # Streak is derived from distinct practice days; refresh it on session end.
     progress.recompute_and_store_streak(session.user_id)
@@ -101,11 +106,15 @@ class AddUtteranceRequest(BaseModel):
     status_code=status.HTTP_201_CREATED,
 )
 def add_utterance(
-    session_id: str, body: AddUtteranceRequest, repos: Repositories = Depends(get_repos)
+    session_id: str,
+    body: AddUtteranceRequest,
+    request: Request,
+    repos: Repositories = Depends(get_repos),
 ) -> Utterance:
     session = repos.sessions.get(session_id)
     if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
+    require_access(request, session.user_id)
     return repos.utterances.add(
         session_id,
         session.user_id,
@@ -119,9 +128,15 @@ def add_utterance(
 
 
 @router.get("/sessions/{session_id}/utterances", response_model=list[Utterance])
-def list_utterances(session_id: str, repos: Repositories = Depends(get_repos)) -> list[Utterance]:
-    if repos.sessions.get(session_id) is None:
+def list_utterances(
+    session_id: str, request: Request, repos: Repositories = Depends(get_repos)
+) -> list[Utterance]:
+    session = repos.sessions.get(session_id)
+    if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
+    # These are the learner's actual words. Keyed by session id, so nothing in
+    # the path told the middleware whose they are.
+    require_access(request, session.user_id)
     return repos.utterances.list_for_session(session_id)
 
 
@@ -144,11 +159,15 @@ class RecordAssessmentRequest(BaseModel):
 def record_assessment(
     session_id: str,
     body: RecordAssessmentRequest,
+    request: Request,
     repos: Repositories = Depends(get_repos),
 ) -> Assessment:
     session = repos.sessions.get(session_id)
     if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"session {session_id!r} not found")
+    # This writes a score into someone's permanent history and moves their
+    # level. Ownership is not optional.
+    require_access(request, session.user_id)
 
     unknown = set(body.scores) - set(DIMENSIONS)
     if unknown:

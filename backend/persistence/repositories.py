@@ -239,6 +239,14 @@ class UtteranceRepository:
             )
         return utt
 
+    def get(self, utterance_id: str) -> Utterance | None:
+        """One utterance. Needed to answer "whose is this?" for access checks."""
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT * FROM utterances WHERE utterance_id=?", (utterance_id,)
+            ).fetchone()
+        return Utterance(**row) if row else None
+
     def list_for_session(self, session_id: str) -> list[Utterance]:
         with self.db.connection() as con:
             rows = con.execute(
