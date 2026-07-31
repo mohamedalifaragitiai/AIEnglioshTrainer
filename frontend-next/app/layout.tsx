@@ -15,6 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UserProvider>
           <Header />
           <main className="max-w-6xl mx-auto px-6 py-6">{children}</main>
+          <footer className="text-center text-dim text-xs px-6 pt-6 pb-9">
+            © {new Date().getFullYear()} <b>Abu Ali</b> · AI English Coach — fully offline,
+            self-hosted.
+          </footer>
         </UserProvider>
       </body>
     </html>

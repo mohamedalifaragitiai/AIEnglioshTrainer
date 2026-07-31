@@ -24,6 +24,9 @@ export function Header() {
   const pathname = usePathname();
   const onAuthPage = pathname === "/login" || pathname === "/signup";
   const [version, setVersion] = useState<string | null>(null);
+  // "Operator" rather than "admin": with auth off there is one user and nothing
+  // to separate, so hiding the machine state would just remove a useful view.
+  const operator = isAdmin || !authRequired;
 
   useEffect(() => {
     // Open endpoint, so this resolves on the login page too — "which build is
@@ -89,21 +92,23 @@ export function Header() {
         <h1 className="text-lg font-semibold">
           AI English <span className="text-accent">Coach</span>
         </h1>
-        {version && <span className="pill bg-panel2 text-muted">v{version}</span>}
+        {operator && version && <span className="pill bg-panel2 text-muted">v{version}</span>}
         <span className="pill bg-panel2 text-accent2">
           Level {currentLevel} · {LEVEL_NAMES[currentLevel]}
         </span>
-        <span
-          className={`pill ${
-            modelsLoaded === null
-              ? ""
-              : modelsLoaded
-                ? "bg-emerald-900 text-emerald-300"
-                : "bg-red-950 text-red-300"
-          }`}
-        >
-          models: {modelsLoaded === null ? "?" : modelsLoaded ? "loaded" : "off"}
-        </span>
+        {operator && (
+          <span
+            className={`pill ${
+              modelsLoaded === null
+                ? ""
+                : modelsLoaded
+                  ? "bg-emerald-900 text-emerald-300"
+                  : "bg-red-950 text-red-300"
+            }`}
+          >
+            models: {modelsLoaded === null ? "?" : modelsLoaded ? "loaded" : "off"}
+          </span>
+        )}
         <div className="flex-1" />
         <label className="text-muted text-sm">Learner</label>
         <select
@@ -136,8 +141,13 @@ export function Header() {
       <nav className="flex gap-1 px-6">
         {tab("/", "Dashboard")}
         {tab("/practice", "Practice")}
+        {tab("/conversations", "Conversations")}
         {tab("/report", "Report")}
-        {tab("/monitor", "Monitor")}
+        {/* Monitor is machine state — VRAM, the degradation ladder, model
+            status. That belongs to whoever runs the box, not to someone
+            practising English. With auth off there is only one user, so it
+            stays visible. */}
+        {operator && tab("/monitor", "Monitor")}
         {/* Shown for admins only — /admin/overview is what actually enforces it. */}
         {isAdmin && tab("/admin", "Admin")}
       </nav>

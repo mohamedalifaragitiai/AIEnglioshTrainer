@@ -3,7 +3,10 @@ import type {
   Assessment,
   AuthSession,
   AuthStatus,
+  ConversationReport,
+  ConversationRow,
   Feedback,
+  FullAnalysis,
   GapItem,
   ModelInfo,
   Plan,
@@ -71,6 +74,13 @@ export const api = {
   // --- auth ---------------------------------------------------------------
   version: () => req<{ version: string; git_sha: string | null }>("/version"),
   adminOverview: () => req<AdminOverview>("/admin/overview"),
+  conversations: (id: string) =>
+    req<ConversationRow[]>(`/users/${encodeURIComponent(id)}/conversations`),
+  conversation: (id: string, sessionId: string) =>
+    req<ConversationReport>(
+      `/users/${encodeURIComponent(id)}/conversations/${encodeURIComponent(sessionId)}`,
+    ),
+  analysis: (id: string) => req<FullAnalysis>(`/users/${encodeURIComponent(id)}/analysis`),
   authStatus: () => req<AuthStatus>("/auth/status"),
   signup: (user_id: string, display_name: string, password: string) =>
     req<AuthSession>("/auth/signup", {

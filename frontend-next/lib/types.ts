@@ -26,6 +26,76 @@ export interface AuthStatus {
   is_admin: boolean;
 }
 
+export interface Recommendation {
+  skill: string;
+  score: number;
+  priority: string;
+  actions: string[];
+}
+
+export interface Correction {
+  text: string | null;
+  correction: string | null;
+  type?: string | null;
+}
+
+export interface ConversationRow {
+  session_id: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_s: number | null;
+  mode: string;
+  learner_turns: number;
+  assessments: number;
+  overall: number | null;
+  scores: Partial<Record<Dimension, number>>;
+  preview: string | null;
+}
+
+export interface ConversationTurn {
+  utterance_id: string;
+  role: string;
+  transcript: string | null;
+  created_at: string;
+  overall: number | null;
+  scores: Partial<Record<Dimension, number>>;
+  corrections: Correction[];
+  suggestions: string[];
+  notes: string[];
+}
+
+export interface ConversationReport extends ConversationRow {
+  user_id: string;
+  turns: ConversationTurn[];
+  words_spoken: number;
+  strengths: string[];
+  weaknesses: string[];
+  corrections: Correction[];
+  suggestions: string[];
+  recommendations: Recommendation[];
+  pending_scoring: boolean;
+}
+
+export interface FullAnalysis {
+  user_id: string;
+  conversations: number;
+  scored_conversations: number;
+  learner_turns: number;
+  practice_seconds: number;
+  overall: number | null;
+  scores: Partial<Record<Dimension, number>>;
+  strengths: string[];
+  weaknesses: string[];
+  trend: {
+    first_half_overall: number | null;
+    second_half_overall: number | null;
+    delta: number | null;
+    direction: string;
+  };
+  recommendations: Recommendation[];
+  history: { started_at: string; overall: number | null }[];
+}
+
 export interface AdminUserRow {
   user_id: string;
   display_name: string;
