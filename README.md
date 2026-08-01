@@ -241,6 +241,34 @@ Three things to get right first:
    a plaintext request. Leave it `false` for the localhost-only setup, where a
    Secure cookie would never be returned and sign-in would silently not stick.
 
+### A public URL that does not depend on Tailscale (Cloudflare tunnel)
+
+Some networks hijack `ts.net` DNS or interfere with Tailscale's ingress. From the
+client that looks like `ERR_NAME_NOT_RESOLVED` or `ERR_SSL_PROTOCOL_ERROR` while
+the server is provably fine — and no amount of server-side work fixes it, because
+nothing on the server is broken. A Cloudflare tunnel routes around it entirely:
+different resolver, different ingress, different TLS terminator, and the client
+needs no software installed.
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8000 --no-autoupdate
+# -> https://<random-words>.trycloudflare.com
+```
+
+On the reference box, `start-all.sh --tunnel` starts it alongside everything
+else, waits for the URL to appear in the log and writes it to `tunnel-url.txt` —
+the URL is only ever printed to the log, so it is worth capturing rather than
+going to look for it.
+
+WebSockets pass through, so Practice and Reading work over it; that is worth
+re-checking after any tunnel change, because HTTP can succeed while the socket
+upgrade fails, and the app looks fine until someone tries to speak.
+
+Two limits of a *quick* tunnel: the hostname is random and changes every time
+`cloudflared` restarts, and it is public — the same exposure as Funnel, so the
+same reasoning applies about password length and login throttling. A named
+tunnel on a domain you control gives a stable hostname instead.
+
 ### When the tailnet URL fails from one device
 
 The server being fine and one device failing are compatible, and the error tells
