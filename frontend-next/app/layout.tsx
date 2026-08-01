@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UserProvider>
           <Header />
           <LevelGate />
-          <main className="max-w-6xl mx-auto px-6 py-6">{children}</main>
+          <main className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] py-6">{children}</main>
           <Footer />
         </UserProvider>
       </body>

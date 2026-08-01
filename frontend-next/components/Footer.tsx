@@ -9,7 +9,7 @@ export function Footer() {
   const operator = isAdmin || !authRequired;
 
   return (
-    <footer className="text-center text-dim text-xs px-6 pt-6 pb-9">
+    <footer className="text-center text-dim text-xs px-[clamp(14px,2.2vw,34px)] pt-6 pb-9">
       © {new Date().getFullYear()} <b>Abu Ali</b> · AI English Coach
       {operator && <> — fully offline, self-hosted.</>}
     </footer>

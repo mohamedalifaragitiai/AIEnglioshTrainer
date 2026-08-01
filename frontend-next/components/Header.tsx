@@ -77,7 +77,7 @@ export function Header() {
   if (onAuthPage) {
     return (
       <header className="border-b border-line bg-panel">
-        <div className="px-6 py-3">
+        <div className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] py-3">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">
               AI English <span className="text-accent">Coach</span>
@@ -91,7 +91,7 @@ export function Header() {
 
   return (
     <header className="border-b border-line bg-panel">
-      <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
+      <div className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] flex items-center gap-4 py-3 flex-wrap">
         <h1 className="text-lg font-semibold">
           AI English <span className="text-accent">Coach</span>
         </h1>
@@ -148,7 +148,7 @@ export function Header() {
           </button>
         )}
       </div>
-      <nav className="flex gap-1 px-6">
+      <nav className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] flex gap-1">
         {tab("/", "Dashboard")}
         {tab("/practice", "Practice")}
         {tab("/reading", "Reading")}
