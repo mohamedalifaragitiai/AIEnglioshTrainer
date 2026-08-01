@@ -327,3 +327,36 @@ def test_reading_mode_returns_a_transcript_without_a_coach_reply():
         sessions = client.get(f"/users/{uid}/sessions").json()
         turns = client.get(f"/sessions/{sessions[0]['session_id']}/utterances").json()
         assert [t["role"] for t in turns] == ["learner"], turns
+
+
+def test_a_discarded_take_is_not_transcribed_and_the_session_survives():
+    """Re-recording a turn must not start a new session: a conversation is one
+    session, and reopening the socket would orphan the history so far."""
+    with TestClient(app) as client:
+        uid = "dc" + new_id()[:8]
+        client.post("/users", json={"user_id": uid, "display_name": "Discard"})
+        client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
+
+        with client.websocket_connect(f"/ws/session?user_id={uid}&ptt=1") as ws:
+            session_id = ws.receive_json()["session_id"]
+
+            for _ in range(SPEECH_FRAMES):
+                ws.send_bytes(_loud())
+            ws.send_text(json.dumps({"type": "discard"}))
+            assert json.loads(_receive_within(ws)["text"])["type"] == "discarded"
+
+            # The discarded audio must not leak into the next take: 'end' now has
+            # nothing buffered, so the server reports a skipped turn.
+            ws.send_text(json.dumps({"type": "end"}))
+            assert json.loads(_receive_within(ws)["text"])["type"] == "turn_skipped"
+
+            # Same session, still usable — a real turn still works afterwards.
+            _speak_a_turn(ws)
+            msgs, _ = _drain_turn(ws)
+            assert "final" in [m["type"] for m in msgs]
+            ws.send_text(json.dumps({"type": "bye"}))
+
+        assert client.get(f"/users/{uid}/sessions").json()[0]["session_id"] == session_id
+        turns = client.get(f"/sessions/{session_id}/utterances").json()
+        # Exactly one learner turn: the discarded take was never transcribed.
+        assert [t["role"] for t in turns].count("learner") == 1

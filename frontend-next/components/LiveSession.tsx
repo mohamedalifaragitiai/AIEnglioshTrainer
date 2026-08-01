@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 
 type Msg = { who: "user" | "coach"; text: string };
-type St = "idle" | "recording" | "busy";
+// "held" = recorded but not sent. Nothing reaches the coach until Send,
+// so a fumbled sentence can be re-recorded instead of answered.
+type St = "idle" | "recording" | "held" | "busy";
 const TTS_RATE = 24000;
 
 export function LiveSession({ userId, topic }: { userId: string; topic: string }) {
@@ -23,6 +25,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
   const playHead = useRef(0);
   const coachOpen = useRef(false);
   const recStart = useRef(0);
+  const heldMs = useRef(0);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const setSt = (s: St) => {
@@ -38,7 +41,13 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
       recTimer.current = setInterval(() => setRecMs(Date.now() - recStart.current), 250);
     }
     setStatus(
-      s === "recording" ? "recording" : s === "busy" ? "Coach is responding" : "Tap the mic to speak",
+      s === "recording"
+        ? "recording"
+        : s === "held"
+          ? "Recorded — send it, or re-record"
+          : s === "busy"
+            ? "Coach is responding"
+            : "Tap the mic to speak",
     );
   };
 
@@ -154,22 +163,47 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
     return socket.readyState === 1;
   }
 
+  /** Stops the microphone but keeps the take: the server buffers it and only
+   *  transcribes on 'end', so it can still be discarded. */
+  function hold() {
+    try {
+      source.current?.disconnect(proc.current!); // stop mic BEFORE coach speaks (no overlap)
+    } catch {
+      /* noop */
+    }
+    heldMs.current = Date.now() - recStart.current;
+    setSt("held");
+  }
+
+  function sendTurn() {
+    if (stateRef.current !== "held") return;
+    try {
+      ws.current?.send(JSON.stringify({ type: "end" }));
+    } catch {
+      /* noop */
+    }
+    setSt("busy");
+  }
+
+  async function redo() {
+    // 'discard' rather than reopening the socket: a conversation is one session,
+    // and a new one would orphan the history so far.
+    try {
+      ws.current?.send(JSON.stringify({ type: "discard" }));
+    } catch {
+      /* noop */
+    }
+    setSt("idle");
+    await onMic();
+  }
+
   async function onMic() {
-    if (state === "busy") return;
-    if (state === "recording") {
-      try {
-        source.current?.disconnect(proc.current!); // stop mic BEFORE coach speaks (no overlap)
-      } catch {
-        /* noop */
-      }
-      try {
-        ws.current?.send(JSON.stringify({ type: "end" }));
-      } catch {
-        /* noop */
-      }
-      setSt("busy");
+    if (state === "busy" || stateRef.current === "busy") return;
+    if (stateRef.current === "recording") {
+      hold();
       return;
     }
+    if (stateRef.current === "held") return; // Send or Re-record decides now
     if (!(await ensureSession())) return;
     try {
       source.current?.connect(proc.current!);
@@ -227,7 +261,11 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
         <div className="flex-1 min-w-0">
           <div className="font-semibold">
             {state === "recording" ? (
-              <span className="text-bad font-bold">● Recording {fmt(recMs)} — tap to send</span>
+              <span className="text-bad font-bold">
+                ● Recording {fmt(recMs)} — tap ⏹ when you finish
+              </span>
+            ) : state === "held" ? (
+              <span>Recorded {fmt(heldMs.current)} — send it, or re-record</span>
             ) : state === "busy" ? (
               <span>
                 Coach is responding
@@ -243,6 +281,18 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           </div>
           {timings && <div className="text-muted text-[11.5px]">{timings}</div>}
         </div>
+        {/* Nothing reaches the coach until Send: stopping only releases the
+            microphone, so a fumbled sentence can be re-recorded. */}
+        {state === "held" && (
+          <>
+            <button className="btn btn-primary" onClick={sendTurn}>
+              Send
+            </button>
+            <button className="btn" onClick={redo}>
+              Re-record
+            </button>
+          </>
+        )}
         {connected && (
           <button className="btn border-bad text-bad" onClick={endSession}>
             End

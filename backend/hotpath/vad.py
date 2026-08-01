@@ -128,6 +128,14 @@ class Segmenter:
                 return self._finalize()
         return None
 
+    def reset(self) -> None:
+        """Throw away whatever has accumulated without finalizing it.
+
+        Used when a learner discards a take: the audio must not become an
+        utterance, and the next recording must not inherit its trailing frames.
+        """
+        self._reset()
+
     def flush(self) -> bytes | None:
         """Force-finalize whatever speech has accumulated (e.g. client said stop)."""
         if self._in_speech and self._speech_frames >= self.min_speech_frames:

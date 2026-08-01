@@ -363,6 +363,10 @@
           <div id="wsStatus" role="status" aria-live="polite" style="font-weight:600">Tap the mic to speak</div>
           <div class="muted" id="turnTimings" style="font-size:11.5px"></div>
         </div>
+        <div class="row hidden" id="turnActions" style="gap:8px">
+          <button id="turnSend" class="btn-primary">Send</button>
+          <button id="turnRedo">Re-record</button>
+        </div>
         <button id="endBtn" class="btn-danger" style="display:none" aria-label="End the session">End</button>
         <button id="micBtn" class="mic" title="Tap to speak" aria-label="Tap to speak">🎙️</button>
       </div>
@@ -1454,7 +1458,7 @@ let ws=null,ac=null,micStream=null,source=null,proc=null,playHead=0,currentCoach
 // Assessment count when this session opened — the yardstick for "the cold path has
 // finished scoring this session", since scoring lands asynchronously after 'bye'.
 let baselineAssessments=0;
-let sttate='idle'; // idle | recording | busy(coach thinking/speaking)
+let sttate='idle'; // idle | recording | held(recorded, not sent) | busy
 const TTS_RATE=24000;
 function addMsg(who,text){const e=$('#convEmpty');if(e)e.remove();
   const d=document.createElement('div');d.className='msg '+(who==='user'?'user':'coach');
@@ -1462,19 +1466,26 @@ function addMsg(who,text){const e=$('#convEmpty');if(e)e.remove();
 function appendCoach(p){if(!currentCoach)currentCoach=addMsg('coach','');const b=currentCoach.querySelector('.body');b.textContent+=(b.textContent?' ':'')+p;$('#conv').scrollTop=1e9;}
 let recStart=0,recTimer=null;
 function fmtT(ms){const s=Math.floor(ms/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
+let heldMs=0;
 function setState(s){sttate=s;const b=$('#micBtn');b.classList.toggle('rec',s==='recording');b.disabled=(s==='busy');
   b.style.opacity=s==='busy'?.55:1;b.textContent=s==='recording'?'⏹':(s==='busy'?'●':'🎙️');
+  // Send/Re-record only exist while a take is waiting to be sent.
+  $('#turnActions').classList.toggle('hidden',s!=='held');
   if(recTimer){clearInterval(recTimer);recTimer=null;}
-  if(s==='recording'){recStart=Date.now();const upd=()=>$('#wsStatus').innerHTML=`<span class="rec-t">● Recording ${fmtT(Date.now()-recStart)}</span> — tap to send`;upd();recTimer=setInterval(upd,250);}
+  if(s==='recording'){recStart=Date.now();const upd=()=>$('#wsStatus').innerHTML=`<span class="rec-t">● Recording ${fmtT(Date.now()-recStart)}</span> — tap ⏹ when you finish`;upd();recTimer=setInterval(upd,250);}
+  else if(s==='held')$('#wsStatus').innerHTML=`Recorded ${fmtT(heldMs)} — <b>Send</b> it, or re-record`;
   else if(s==='busy')$('#wsStatus').innerHTML=`Coach is responding<span class="dots"><i></i><i></i><i></i></span>`;
   else $('#wsStatus').textContent='Tap the mic to speak';
   $('#endBtn').style.display=(ws&&ws.readyState===1)?'':'none';}
 
 $('#micBtn').addEventListener('click',async()=>{
   if(sttate==='busy')return;
-  if(sttate==='recording'){sendTurn();return;}
+  if(sttate==='recording'){holdTurn();return;}
+  if(sttate==='held')return;            // Send or Re-record decides from here
   await startSpeaking();
 });
+$('#turnSend').addEventListener('click',sendTurn);
+$('#turnRedo').addEventListener('click',redoTurn);
 $('#endBtn').addEventListener('click',endSession);
 
 async function ensureSession(){
@@ -1507,10 +1518,24 @@ async function startSpeaking(){
   try{source.connect(proc);}catch{}   // start feeding the mic
   setState('recording');
 }
+function holdTurn(){
+  // Stop the mic but keep the take: the server has it buffered and will not
+  // transcribe until 'end' arrives, so it can still be thrown away.
+  try{source.disconnect(proc);}catch{}
+  heldMs=Date.now()-recStart;
+  setState('held');
+}
 function sendTurn(){
-  try{source.disconnect(proc);}catch{}  // stop the mic BEFORE the coach speaks (no overlap)
+  if(sttate!=='held')return;
   try{ws.send(JSON.stringify({type:'end'}));}catch{}
   setState('busy');
+}
+function redoTurn(){
+  // 'discard' rather than closing: a conversation is one session, and reopening
+  // the socket would orphan the history so far.
+  try{ws.send(JSON.stringify({type:'discard'}));}catch{}
+  setState('idle');
+  startSpeaking();
 }
 function endSession(){
   stopPlayback();                       // silence the coach immediately

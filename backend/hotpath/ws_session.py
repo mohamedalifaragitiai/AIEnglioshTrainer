@@ -196,6 +196,21 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                     control = json.loads(text)
                 except json.JSONDecodeError:
                     continue
+                if control.get("type") == "discard":
+                    # Throw the buffered take away without transcribing it. The
+                    # socket stays open because a conversation is one session:
+                    # re-recording a turn must not start a new one and orphan
+                    # the history so far.
+                    dropped = len(pending)
+                    pending.clear()
+                    segmenter.reset()
+                    log.info(
+                        "ws_take_discarded",
+                        session_id=session.session_id,
+                        dropped_bytes=dropped,
+                    )
+                    await ws.send_text(json.dumps({"type": "discarded"}))
+                    continue
                 if control.get("type") == "end":
                     if ptt:
                         # Whole recording is the utterance; require a minimum length.
