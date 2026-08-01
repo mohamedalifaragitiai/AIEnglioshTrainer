@@ -482,6 +482,94 @@ class ReportRepository:
         return [dict(r) for r in rows]
 
 
+_READING_COLS = (
+    "attempt_id, user_id, level, title, reference_words, spoken_words, matched_words,"
+    " accuracy, wer, wpm, pace, duration_s, created_at"
+)
+
+
+class ReadingRepository:
+    """Read-aloud attempts, so accuracy can be tracked over time.
+
+    Reading is the one exercise measured against a known text, which makes it
+    the most comparable number the app produces — throwing each result away
+    after it is shown wasted exactly the data worth trending.
+    """
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def add(self, user_id: str, result: dict, *, level: int | None, title: str | None) -> str:
+        attempt_id = new_id("read")
+        with self.db.connection() as con:
+            con.execute(
+                f"INSERT INTO reading_attempts({_READING_COLS})"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    attempt_id,
+                    user_id,
+                    level,
+                    title,
+                    result["reference_words"],
+                    result["spoken_words"],
+                    result["matched_words"],
+                    result["accuracy"],
+                    result["wer"],
+                    result["wpm"],
+                    result["pace"],
+                    result["duration_s"],
+                    now_iso(),
+                ),
+            )
+        return attempt_id
+
+    def list_for_user(self, user_id: str, limit: int = 50) -> list[dict]:
+        with self.db.connection() as con:
+            rows = con.execute(
+                f"SELECT {_READING_COLS} FROM reading_attempts WHERE user_id=?"
+                " ORDER BY created_at DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def summary(self, user_id: str) -> dict:
+        """Counts, bests and averages — enough to say whether reading is improving."""
+        with self.db.connection() as con:
+            row = con.execute(
+                "SELECT COUNT(*) AS attempts, AVG(accuracy) AS avg_accuracy,"
+                " MAX(accuracy) AS best_accuracy, AVG(wpm) AS avg_wpm,"
+                " SUM(duration_s) AS total_seconds, SUM(reference_words) AS words_read"
+                " FROM reading_attempts WHERE user_id=?",
+                (user_id,),
+            ).fetchone()
+            # Oldest-first, so "improving" is measured rather than asserted —
+            # the same rule the conversation trend follows.
+            recent = [
+                r["accuracy"]
+                for r in con.execute(
+                    "SELECT accuracy FROM reading_attempts WHERE user_id=? AND accuracy IS NOT NULL"
+                    " ORDER BY created_at",
+                    (user_id,),
+                ).fetchall()
+            ]
+
+        def _round(v, p=1):
+            return None if v is None else round(v, p)
+
+        half = len(recent) // 2
+        first = sum(recent[:half]) / half if half else None
+        second = sum(recent[half:]) / (len(recent) - half) if half else None
+        return {
+            "attempts": row["attempts"],
+            "avg_accuracy": _round(row["avg_accuracy"]),
+            "best_accuracy": _round(row["best_accuracy"]),
+            "avg_wpm": _round(row["avg_wpm"]),
+            "total_seconds": _round(row["total_seconds"]),
+            "words_read": row["words_read"] or 0,
+            "delta": _round(second - first) if first is not None and second is not None else None,
+        }
+
+
 class CredentialRepository:
     """Password credentials, one row per user at most.
 

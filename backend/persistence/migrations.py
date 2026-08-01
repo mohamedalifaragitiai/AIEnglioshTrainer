@@ -148,12 +148,38 @@ UPDATE users SET level_selected = 1
  WHERE user_id IN (SELECT DISTINCT user_id FROM assessments);
 """
 
+# Reading attempts get their own table rather than joining `assessments`.
+# Assessments score free speech against a judgement; a reading attempt is
+# measured against a known text, so it carries different columns (accuracy, WER,
+# words-per-minute) and a different meaning. Forcing them into one row would
+# make every query ask "which kind is this?" before it could do anything.
+_SCHEMA_005 = """
+CREATE TABLE IF NOT EXISTS reading_attempts (
+  attempt_id      TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  level           INTEGER,
+  title           TEXT,
+  reference_words INTEGER NOT NULL,
+  spoken_words    INTEGER NOT NULL,
+  matched_words   INTEGER NOT NULL,
+  accuracy        REAL,
+  wer             REAL,
+  wpm             REAL,
+  pace            TEXT,
+  duration_s      REAL,
+  created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reading_user_time
+  ON reading_attempts(user_id, created_at);
+"""
+
 # (version, description, sql) — append new tuples; never rewrite an applied one.
 MIGRATIONS: list[tuple[int, str, str]] = [
     (1, "initial schema", _SCHEMA_001),
     (2, "auth: credentials + login sessions", _SCHEMA_002),
     (3, "auth: admin flag on users", _SCHEMA_003),
     (4, "onboarding: has the learner chosen their level", _SCHEMA_004),
+    (5, "reading: persisted read-aloud attempts", _SCHEMA_005),
 ]
 
 

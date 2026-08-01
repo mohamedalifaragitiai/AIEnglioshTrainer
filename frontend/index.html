@@ -191,6 +191,41 @@
   .sq.h2{background:rgba(45,212,191,.52)} .sq.h3{background:rgba(45,212,191,.76)}
   .sq.h4{background:var(--accent)}
   .heat-legend .sq{display:inline-block;vertical-align:middle;margin:0 2px}
+
+  /* --- small screens ------------------------------------------------------
+     This app is reached from a phone over the tailnet, so the phone is not an
+     edge case. Nav scrolls instead of stacking into four rows, the header
+     collapses to two lines, charts stop being fixed-width, and the mic sits
+     where a thumb actually is. */
+  @media (max-width: 860px) {
+    header{gap:8px;padding-block:10px}
+    .brand{font-size:15px} .logo{width:26px;height:26px}
+    nav{gap:2px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-ms-overflow-style:none}
+    nav::-webkit-scrollbar{display:none}
+    nav button{padding:10px 12px;white-space:nowrap;font-size:14px}
+    main{padding-bottom:96px}
+    .tiles{grid-template-columns:repeat(2,1fr)}
+    .c2,.c3{grid-template-columns:1fr}
+    .card{padding:14px}
+    .tile .v{font-size:24px}
+    table{font-size:12px} th,td{padding:6px 5px}
+    /* Fixed-width canvases were overflowing the card on a phone. */
+    canvas{max-width:100%;height:auto}
+    .turn{max-width:94%}
+    .levels{display:grid;grid-template-columns:repeat(3,1fr)}
+    .levels button{width:100%}
+    /* Reach: the mic is the primary action of the whole app and was sitting
+       mid-page, above the fold on desktop and out of thumb range on a phone. */
+    .composer{position:sticky;bottom:0;padding:10px;background:var(--glass);
+      backdrop-filter:blur(10px);border-top:1px solid var(--line);z-index:5}
+    .mic{width:60px;height:60px}
+    .chat-card{padding-bottom:0}
+  }
+  @media (max-width: 520px) {
+    .tiles{grid-template-columns:1fr}
+    .levels{grid-template-columns:repeat(2,1fr)}
+    header .muted{display:none}
+  }
   footer{padding:26px var(--gutter) 34px;text-align:center;color:var(--dim);font-size:12.5px}
   footer a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line)}
   /* End-of-session results modal */
@@ -244,7 +279,16 @@
 <main>
   <!-- DASHBOARD -->
   <section id="dash">
-    <div id="dashEmpty" class="banner hidden">No assessments yet — click <b>Load demo</b>, or use <b>Practice</b>.</div>
+    <!-- A learner with no history lands here first. A dashboard of zeros is a
+         review surface being used as a landing surface, so give them the one
+         action that fills it. -->
+    <div id="dashEmpty" class="card hidden" style="text-align:center;padding:30px 22px">
+      <h3 style="margin:0 0 6px;font-size:17px;text-transform:none;letter-spacing:0;color:var(--text)">
+        Ready when you are</h3>
+      <p class="muted" style="margin:0 0 18px">Your scores, radar and streak fill in after your
+        first conversation. It takes about two minutes.</p>
+      <button class="btn-primary" id="startFirst" style="padding:12px 22px">🎙️ Start your first conversation</button>
+    </div>
     <!-- Level first: it decides the difficulty of everything below it, so it
          belongs above the numbers rather than buried between charts. -->
     <div class="card">
@@ -254,17 +298,17 @@
     <div style="height:16px"></div>
     <div class="grid tiles" id="tiles"></div>
     <div style="height:16px"></div>
-    <div class="grid c2">
+    <div class="grid c2" id="dashCharts">
       <div class="card"><h3>Skill radar</h3><canvas id="radar" width="470" height="360"></canvas></div>
       <div class="card"><h3>Per-skill mastery</h3><div id="skills"></div></div>
     </div>
     <div style="height:16px"></div>
-    <div class="grid c2">
+    <div class="grid c2" id="dashTrend">
       <div class="card"><h3>Overall trend</h3><canvas id="trend" width="470" height="300"></canvas></div>
       <div class="card"><h3>Study plan</h3><div id="plan"></div></div>
     </div>
     <div style="height:16px"></div>
-    <div class="card">
+    <div class="card" id="dashAssess">
       <div class="row" style="justify-content:space-between;margin-bottom:4px">
         <h3 style="margin:0">Recent assessments</h3>
         <div class="row"><span class="muted" style="font-size:12px">Report:</span>
@@ -370,6 +414,7 @@
       </div>
     </div>
     <div class="card hidden" id="readResult" style="margin-top:16px"></div>
+    <div class="card hidden" id="readHistory" style="margin-top:16px"></div>
   </section>
 
   <!-- HISTORY (everything said, newest first) -->
@@ -656,6 +701,7 @@ function initReading(){
     $('#readLevel').value=String(currentLevel||0);
   }
   if(!readPassage)loadPassage();
+  renderReadHistory();
 }
 async function loadPassage(){
   const level=+$('#readLevel').value||0;
@@ -712,7 +758,7 @@ async function scoreReading(spoken){
   let r;
   try{
     r=await api.post(`/users/${encodeURIComponent(currentUser)}/reading/score`,
-      {reference:readPassage.text,spoken,duration_s:seconds,level:readPassage.level});
+      {reference:readPassage.text,spoken,duration_s:seconds,level:readPassage.level,title:readPassage.title});
   }catch(e){readSetState('idle','Could not score: '+e.message);return;}
   readSetState('idle','Tap the microphone and read it aloud');
   const box=$('#readResult'); box.classList.remove('hidden');
@@ -736,6 +782,35 @@ async function scoreReading(spoken){
     ${r.substitutions.length?`<h4 style="margin:16px 0 6px">Heard differently</h4>
       ${r.substitutions.map(s=>`<div class="corr"><s>${esc(s.expected)}</s> → <b>${esc(s.heard)}</b></div>`).join('')}`:''}`;
   box.scrollIntoView({behavior:'smooth',block:'nearest'});
+  renderReadHistory();   // the attempt just became part of the trend
+}
+
+async function renderReadHistory(){
+  const box=$('#readHistory'); if(!currentUser)return;
+  let h; try{h=await api.get(`/users/${encodeURIComponent(currentUser)}/reading/attempts?limit=20`);}
+  catch{box.classList.add('hidden');return;}
+  if(!h.attempts.length){box.classList.add('hidden');return;}
+  const s=h.summary, d=s.delta;
+  box.classList.remove('hidden');
+  box.innerHTML=`<h3>Your reading over time</h3>
+    <div class="grid tiles">
+      <div class="card tile"><div class="l">Attempts</div><div class="v">${s.attempts}</div>
+        <div class="s">${s.words_read} words read</div></div>
+      <div class="card tile"><div class="l">Best accuracy</div><div class="v">${s.best_accuracy!=null?s.best_accuracy+'%':'—'}</div>
+        <div class="s">average ${s.avg_accuracy!=null?s.avg_accuracy+'%':'—'}</div></div>
+      <div class="card tile"><div class="l">Typical pace</div><div class="v">${s.avg_wpm!=null?Math.round(s.avg_wpm):'—'}</div>
+        <div class="s">words per minute</div></div>
+      <div class="card tile"><div class="l">Trend</div>
+        <div class="v">${d==null?'—':(d>0?'▲ +':'▼ ')+d}</div>
+        <div class="s">${d==null?'need more attempts':'accuracy, recent vs earlier'}</div></div>
+    </div>
+    <div style="overflow-x:auto;margin-top:14px"><table>
+      <tr><th>when</th><th>passage</th><th>accuracy</th><th>wpm</th><th>pace</th></tr>
+      ${h.attempts.map(a=>`<tr><td class="muted">${fmtDate(a.created_at)}</td>
+        <td>${esc(a.title||'—')}</td>
+        <td><b class="${scoreClass(a.accuracy)}" style="padding:2px 8px;border-radius:7px">${a.accuracy!=null?a.accuracy+'%':'—'}</b></td>
+        <td>${a.wpm!=null?Math.round(a.wpm):'—'}</td><td class="muted">${esc(a.pace||'—')}</td></tr>`).join('')}
+    </table></div>`;
 }
 
 // --- first-run level picker -------------------------------------------------
@@ -755,6 +830,9 @@ function maybeAskLevel(user){
       currentLevel=u.current_level;
       $('#levelGate').classList.add('hidden');
       renderAll();
+      // Straight to the thing that produces data. Landing a brand-new learner
+      // on a dashboard of zeros gives them nothing to do.
+      document.querySelector('nav button[data-tab="practice"]').click();
     }catch(e){alert('Could not save your level:\n'+e.message);}
   }));
   $('#levelGate').classList.remove('hidden');
@@ -807,6 +885,11 @@ function drawHistory(){
   $('#histNote').textContent=`${shown} message${shown===1?'':'s'}${q?' matching “'+esc(q)+'”':''}.`;
 }
 $('#histSearch').addEventListener('input',drawHistory);
+// Onboarding: the empty dashboard's one action is to go and fill it.
+$('#startFirst').addEventListener('click',()=>{
+  document.querySelector('nav button[data-tab="practice"]').click();
+  window.scrollTo({top:0,behavior:'smooth'});
+});
 
 // --- conversations: the analysis across all, then one at a time ------------
 function scoreClass(v){return v==null?'s-none':v>=75?'s-good':v>=60?'s-mid':'s-low';}
@@ -986,7 +1069,13 @@ async function renderDashboard(){
   currentLevel=ov.current_level;currentStreak=ov.streak_days;renderStreak();
   $('#lvlBadge').textContent='Level '+ov.current_level+' · '+LEVELS[ov.current_level];
   $('#practiceLvl').textContent='Level '+ov.current_level+' · '+LEVELS[ov.current_level];renderLevels();
-  $('#dashEmpty').classList.toggle('hidden',assess.length>0);
+  const fresh=assess.length===0;
+  $('#dashEmpty').classList.toggle('hidden',!fresh);
+  // Empty charts are noise, not information: hide the review furniture until
+  // there is something in it.
+  ['#dashCharts','#dashTrend','#dashAssess'].forEach(sel=>{
+    const el=document.querySelector(sel); if(el)el.classList.toggle('hidden',fresh);
+  });
   const eta=ov.estimated_days_to_next_level;
   $('#tiles').innerHTML=[
     {l:'Level',v:ov.current_level,s:LEVELS[ov.current_level]},

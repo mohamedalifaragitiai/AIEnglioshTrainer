@@ -13,6 +13,7 @@ import type {
   ModelInfo,
   Plan,
   ProgressOverview,
+  ReadingHistory,
   ReadingPassage,
   ReadingResult,
   SkillPoint,
@@ -98,9 +99,17 @@ export const api = {
     req<ReadingPassage>(
       `/reading/passage?level=${level}&seed=${encodeURIComponent(seed)}`,
     ),
+  readingHistory: (id: string) =>
+    req<ReadingHistory>(`/users/${encodeURIComponent(id)}/reading/attempts?limit=20`),
   scoreReading: (
     id: string,
-    body: { reference: string; spoken: string; duration_s: number; level: number },
+    body: {
+      reference: string;
+      spoken: string;
+      duration_s: number;
+      level: number;
+      title: string;
+    },
   ) =>
     req<ReadingResult>(`/users/${encodeURIComponent(id)}/reading/score`, {
       method: "POST",

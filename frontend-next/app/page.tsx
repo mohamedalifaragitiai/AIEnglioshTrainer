@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import {
   LEVEL_NAMES,
@@ -67,9 +68,19 @@ export default function Dashboard() {
   };
   return (
     <div className="space-y-4">
+      {/* A learner with no history lands here first. A dashboard of zeros is a
+          review surface being used as a landing surface, so give them the one
+          action that fills it — and hide the empty charts below. */}
       {ov.assessments_count === 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn/10 text-warn px-4 py-2.5 text-sm">
-          No assessments yet — click <b>Load demo data</b> above, or use <b>Practice</b>.
+        <div className="card text-center py-8">
+          <h2 className="text-lg font-semibold mb-1">Ready when you are</h2>
+          <p className="text-muted text-sm mb-5">
+            Your scores, radar and streak fill in after your first conversation. It takes
+            about two minutes.
+          </p>
+          <Link href="/practice" className="btn btn-primary inline-block px-6 py-3">
+            🎙️ Start your first conversation
+          </Link>
         </div>
       )}
 
@@ -95,6 +106,7 @@ export default function Dashboard() {
         />
       </div>
 
+      {ov.assessments_count > 0 && (
       <div className="grid md:grid-cols-2 gap-4">
         <div className="card">
           <div className="card-title">Skill radar</div>
@@ -105,6 +117,7 @@ export default function Dashboard() {
           <SkillBars scores={ov.latest_scores} />
         </div>
       </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="card">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { LEVEL_NAMES } from "@/lib/types";
 import { useUser } from "@/app/user-context";
@@ -23,6 +24,7 @@ const BLURBS = [
  */
 export function LevelGate() {
   const { users, currentUser, refresh } = useUser();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +37,9 @@ export function LevelGate() {
     try {
       await api.chooseLevel(user.user_id, level);
       await refresh();
+      // Straight to the thing that produces data. A brand-new learner
+      // landing on a dashboard of zeros has nothing to do there.
+      router.push("/practice");
     } catch (e) {
       setError((e as Error).message);
       setSaving(false);

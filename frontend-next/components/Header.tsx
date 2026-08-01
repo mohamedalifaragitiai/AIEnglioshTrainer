@@ -65,7 +65,7 @@ export function Header() {
   const tab = (href: string, label: string) => (
     <Link
       href={href}
-      className={`px-3 py-1.5 border-b-2 ${
+      className={`px-3 py-2 shrink-0 border-b-2 ${
         pathname === href ? "text-fg border-accent" : "text-muted border-transparent"
       }`}
     >
@@ -115,9 +115,9 @@ export function Header() {
           </span>
         )}
         <div className="flex-1" />
-        <label className="text-muted text-sm">Learner</label>
+        <label className="text-muted text-sm hidden sm:block">Learner</label>
         <select
-          className="btn"
+          className="btn max-w-[42vw] sm:max-w-none"
           value={currentUser ?? ""}
           onChange={(e) => setCurrentUser(e.target.value)}
         >
@@ -148,7 +148,7 @@ export function Header() {
           </button>
         )}
       </div>
-      <nav className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] flex gap-1">
+      <nav className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] flex gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tab("/", "Dashboard")}
         {tab("/practice", "Practice")}
         {tab("/reading", "Reading")}

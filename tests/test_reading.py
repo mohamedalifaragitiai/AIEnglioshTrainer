@@ -84,3 +84,61 @@ def test_reading_endpoints():
             json={"reference": "x", "spoken": "x", "duration_s": 1.0},
         )
         assert missing.status_code == 404
+
+
+def test_attempts_are_stored_and_trended():
+    """Reading is the one exercise measured against a known text, so its scores
+    are the most comparable the app produces — they must not vanish on refresh."""
+    with TestClient(app) as client:
+        uid = "r" + new_id()[:10]
+        client.post("/users", json={"user_id": uid, "display_name": "Reader"})
+        p = client.get("/reading/passage?level=1").json()
+
+        first = client.post(
+            f"/users/{uid}/reading/score",
+            json={
+                "reference": p["text"],
+                "spoken": " ".join(p["text"].split()[:5]),
+                "duration_s": 20.0,
+                "level": 1,
+                "title": p["title"],
+            },
+        ).json()
+        assert first["attempt_id"], "the attempt should have been persisted"
+
+        client.post(
+            f"/users/{uid}/reading/score",
+            json={
+                "reference": p["text"],
+                "spoken": p["text"],
+                "duration_s": 25.0,
+                "level": 1,
+                "title": p["title"],
+            },
+        )
+
+        body = client.get(f"/users/{uid}/reading/attempts").json()
+        assert len(body["attempts"]) == 2
+        assert body["attempts"][0]["title"] == p["title"]
+        s = body["summary"]
+        assert s["attempts"] == 2
+        assert s["best_accuracy"] == 100.0
+        assert s["words_read"] == 2 * p["words"]
+        # Second half read better than the first, so the delta is positive.
+        assert s["delta"] > 0
+
+
+def test_reading_history_is_private_to_its_owner():
+    with TestClient(app) as client:
+        from tests.test_auth import PASSWORD, _signup, _uid, auth_enforced
+
+        mine, theirs = _uid(), _uid()
+        my_token = _signup(client, mine, PASSWORD).json()["token"]
+        _signup(client, theirs, PASSWORD)
+        client.cookies.clear()
+        with auth_enforced():
+            r = client.get(
+                f"/users/{theirs}/reading/attempts",
+                headers={"Authorization": f"Bearer {my_token}"},
+            )
+            assert r.status_code == 403

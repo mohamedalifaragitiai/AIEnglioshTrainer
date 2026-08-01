@@ -76,6 +76,35 @@ export interface ReadingResult {
   verdict: string;
 }
 
+export interface ReadingAttempt {
+  attempt_id: string;
+  level: number | null;
+  title: string | null;
+  reference_words: number;
+  spoken_words: number;
+  matched_words: number;
+  accuracy: number | null;
+  wer: number | null;
+  wpm: number | null;
+  pace: string | null;
+  duration_s: number | null;
+  created_at: string;
+}
+
+export interface ReadingHistory {
+  user_id: string;
+  summary: {
+    attempts: number;
+    avg_accuracy: number | null;
+    best_accuracy: number | null;
+    avg_wpm: number | null;
+    total_seconds: number | null;
+    words_read: number;
+    delta: number | null;
+  };
+  attempts: ReadingAttempt[];
+}
+
 export interface Recommendation {
   skill: string;
   score: number;

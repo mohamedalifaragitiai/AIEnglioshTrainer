@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api, API_BASE, getToken } from "@/lib/api";
 import { to16k } from "@/lib/audio";
-import { LEVEL_NAMES, type ReadingPassage, type ReadingResult } from "@/lib/types";
+import {
+  LEVEL_NAMES,
+  type ReadingHistory,
+  type ReadingPassage,
+  type ReadingResult,
+} from "@/lib/types";
 import { StatTile } from "@/components/panels";
 import { useUser } from "../user-context";
 
@@ -23,6 +28,7 @@ export default function ReadingPage() {
   const [state, setState] = useState<State>("idle");
   const [status, setStatus] = useState("Tap the microphone and read it aloud");
   const [result, setResult] = useState<ReadingResult | null>(null);
+  const [history, setHistory] = useState<ReadingHistory | null>(null);
 
   const ws = useRef<WebSocket | null>(null);
   const ac = useRef<AudioContext | null>(null);
@@ -55,10 +61,17 @@ export default function ReadingPage() {
     setLevel(currentLevel);
   }, [currentLevel]);
 
+  const loadHistory = () => {
+    if (!currentUser) return;
+    api.readingHistory(currentUser).then(setHistory).catch(() => setHistory(null));
+  };
+
   useEffect(() => {
     if (currentUser) loadPassage(level);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, level]);
+
+  useEffect(loadHistory, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const teardown = () => {
     try {
@@ -89,12 +102,14 @@ export default function ReadingPage() {
           spoken,
           duration_s: seconds,
           level: p.level,
+          title: p.title,
         }),
       );
       setStatus("Tap the microphone and read it aloud");
     } catch (e) {
       setStatus(`Could not score: ${(e as Error).message}`);
     }
+    loadHistory();   // the attempt just became part of the trend
     setState("idle");
   };
 
@@ -284,6 +299,88 @@ export default function ReadingPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {history && history.attempts.length > 0 && (
+        <div className="card">
+          <h3 className="font-semibold mb-3">Your reading over time</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile
+              label="Attempts"
+              value={String(history.summary.attempts)}
+              sub={`${history.summary.words_read} words read`}
+            />
+            <StatTile
+              label="Best accuracy"
+              value={
+                history.summary.best_accuracy != null
+                  ? `${history.summary.best_accuracy}%`
+                  : "—"
+              }
+              sub={
+                history.summary.avg_accuracy != null
+                  ? `average ${history.summary.avg_accuracy}%`
+                  : "—"
+              }
+            />
+            <StatTile
+              label="Typical pace"
+              value={
+                history.summary.avg_wpm != null
+                  ? String(Math.round(history.summary.avg_wpm))
+                  : "—"
+              }
+              sub="words per minute"
+            />
+            <StatTile
+              label="Trend"
+              value={
+                history.summary.delta == null
+                  ? "—"
+                  : `${history.summary.delta > 0 ? "▲ +" : "▼ "}${history.summary.delta}`
+              }
+              sub={
+                history.summary.delta == null
+                  ? "need more attempts"
+                  : "accuracy, recent vs earlier"
+              }
+            />
+          </div>
+
+          <div className="overflow-x-auto mt-4">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted">
+                  <th className="text-left py-1.5 px-2 font-medium">when</th>
+                  <th className="text-left py-1.5 px-2 font-medium">passage</th>
+                  <th className="text-left py-1.5 px-2 font-medium">accuracy</th>
+                  <th className="text-left py-1.5 px-2 font-medium">wpm</th>
+                  <th className="text-left py-1.5 px-2 font-medium">pace</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.attempts.map((a) => (
+                  <tr key={a.attempt_id} className="border-t border-line">
+                    <td className="py-1.5 px-2 text-muted whitespace-nowrap">
+                      {new Date(a.created_at).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </td>
+                    <td className="py-1.5 px-2">{a.title ?? "—"}</td>
+                    <td className="py-1.5 px-2">
+                      <span className={`px-2 py-0.5 rounded ${band(a.accuracy)}`}>
+                        {a.accuracy != null ? `${a.accuracy}%` : "—"}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-2">{a.wpm != null ? Math.round(a.wpm) : "—"}</td>
+                    <td className="py-1.5 px-2 text-muted">{a.pace ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
