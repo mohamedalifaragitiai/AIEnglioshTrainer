@@ -241,6 +241,33 @@ Three things to get right first:
    a plaintext request. Leave it `false` for the localhost-only setup, where a
    Secure cookie would never be returned and sign-in would silently not stick.
 
+### When the tailnet URL fails from one device
+
+The server being fine and one device failing are compatible, and the error tells
+you which half to look at. Check the server first — from the box itself and from
+somewhere outside it — before changing anything:
+
+```bash
+tailscale funnel status                     # is it published at all?
+curl -sS -o /dev/null -w '%{http_code} tls=%{ssl_verify_result}\n' \
+  https://<host>.ts.net/version             # tls=0 means the cert verified
+```
+
+If those pass, the deployment is working and the fault is between the device and
+it:
+
+| Browser error | What it means | Fix |
+|---|---|---|
+| `ERR_NAME_NOT_RESOLVED` | the device's resolver has no record — often ISP/carrier DNS, or a cached failure from before the name existed | Private DNS `one.one.one.one`, or install Tailscale on the device |
+| `ERR_SSL_PROTOCOL_ERROR` | something answered on 443 that is not the server — DNS hijacking to an ISP page, or TLS inspection on the network | try mobile data to confirm, then Private DNS or Tailscale on the device |
+| `ERR_CERT_AUTHORITY_INVALID` | a proxy is re-signing certificates | same |
+| `ERR_CERT_DATE_INVALID` | the device's clock is wrong | fix the clock |
+| `ERR_CONNECTION_REFUSED` | nothing is listening on that port for that name — usually plain HTTP on a `ts.net` name, which browsers force to HTTPS (HSTS preload) | enable tailnet HTTPS and serve on 443 |
+
+Installing Tailscale on the client device sidesteps the whole category: MagicDNS
+replaces the resolver that was lying, and WireGuard carries the traffic, so
+neither hijacked DNS nor TLS inspection is in the path.
+
 ### A public link (Funnel)
 
 `tailscale serve` is tailnet-only — your devices. To let *anyone* use the coach,
