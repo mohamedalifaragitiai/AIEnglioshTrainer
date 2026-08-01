@@ -156,7 +156,7 @@
   .chat-card{padding:0;display:flex;flex-direction:column;overflow:hidden}
   .chat-card .conv{flex:1;padding:18px;max-height:56vh;min-height:280px}
   .conv-empty{margin:auto;color:var(--dim);text-align:center;font-size:14px}
-  .composer{display:flex;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--line);
+  .composer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid var(--line);
     background:linear-gradient(180deg,transparent,rgba(45,212,191,.04))}
   .composer .mic{width:54px;height:54px;font-size:21px;flex:none}
   .composer-status{flex:1;min-width:0}
@@ -232,9 +232,16 @@
     .levels button{width:100%}
     /* Reach: the mic is the primary action of the whole app and was sitting
        mid-page, above the fold on desktop and out of thumb range on a phone. */
-    .composer{position:sticky;bottom:0;padding:10px;background:var(--glass);
+    .composer{position:sticky;bottom:0;padding:10px;gap:8px;background:var(--glass);
       backdrop-filter:blur(10px);border-top:1px solid var(--line);z-index:5}
-    .mic{width:60px;height:60px}
+    /* Status on its own line, controls beneath it: five items never fit one
+       phone-width row, and the mic must stay reachable no matter what else is
+       on screen. */
+    .composer-status{flex:1 1 100%;order:-1}
+    .composer .mic{margin-left:auto}
+    #turnActions{flex:1 1 auto}
+    #turnActions button{flex:1}
+    .mic{width:56px;height:56px}
     .chat-card{padding-bottom:0}
   }
   @media (max-width: 520px) {

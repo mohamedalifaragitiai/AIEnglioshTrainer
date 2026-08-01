@@ -257,8 +257,9 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-3.5 px-[18px] py-3.5 border-t border-line bg-[linear-gradient(180deg,transparent,rgba(45,212,191,0.04))]">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3.5 px-3 sm:px-[18px] py-3 sm:py-3.5 border-t border-line bg-[linear-gradient(180deg,transparent,rgba(45,212,191,0.04))]">
+        {/* Full width on a phone so the controls below it get a whole row. */}
+        <div className="basis-full sm:basis-auto sm:flex-1 min-w-0 order-first">
           <div className="font-semibold">
             {state === "recording" ? (
               <span className="text-bad font-bold">
