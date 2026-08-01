@@ -293,6 +293,29 @@ def change_password(
     return _issue(response, repos, settings, user)
 
 
+@router.post("/logout-all")
+def logout_everywhere(
+    request: Request,
+    response: Response,
+    repos: Repositories = Depends(get_repos),
+) -> dict:
+    """Revoke every session for this learner, including the caller's own.
+
+    The honest version of "sign out everywhere": leaving the current session
+    alive would mean the one device you are holding is the one you cannot
+    revoke, which is backwards when the reason you pressed it is that you left
+    yourself signed in on a machine you no longer have.
+    """
+    settings = get_settings()
+    uid = current_user_id(request)
+    if uid is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
+    revoked = repos.auth_sessions.delete_for_user(uid)
+    response.delete_cookie(settings.auth_cookie_name)
+    log.info("logout_all", user_id=uid, sessions_revoked=revoked)
+    return {"revoked": revoked}
+
+
 @router.get("/me", response_model=User)
 def me(request: Request, repos: Repositories = Depends(get_repos)) -> User:
     uid = current_user_id(request)

@@ -127,6 +127,19 @@ export const api = {
       body: JSON.stringify({ user_id, password }),
     }),
   logout: () => req<void>("/auth/logout", { method: "POST" }),
+  logoutAll: () => req<{ revoked: number }>("/auth/logout-all", { method: "POST" }),
+  changePassword: (current_password: string, new_password: string) =>
+    req<AuthSession>("/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
+  updateUser: (id: string, patch: { display_name?: string; current_level?: number }) =>
+    req<User>(`/users/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteUser: (id: string) =>
+    req<void>(`/users/${encodeURIComponent(id)}`, { method: "DELETE" }),
   me: () => req<User>("/auth/me"),
 
   listUsers: () => req<User[]>("/users"),

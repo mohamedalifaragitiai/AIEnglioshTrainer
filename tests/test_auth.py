@@ -393,3 +393,35 @@ def test_ws_accepts_a_valid_token():
             url = f"/ws/session?user_id={uid}&token={token}&ptt=1"
             with client.websocket_connect(url) as ws:
                 ws.send_text(json.dumps({"type": "bye"}))
+
+
+def test_logout_everywhere_revokes_this_session_too():
+    """The device you are holding must not be the one session you cannot revoke —
+    the reason for pressing it is usually a machine you no longer have."""
+    with TestClient(app) as client:
+        uid = _uid()
+        first = _signup(client, uid).json()["token"]
+        second = client.post(
+            "/auth/login", json={"user_id": uid, "password": PASSWORD}
+        ).json()["token"]
+        client.cookies.clear()
+
+        r = client.post("/auth/logout-all", headers={"Authorization": f"Bearer {first}"})
+        assert r.status_code == 200
+        assert r.json()["revoked"] >= 2
+
+        for token in (first, second):
+            assert (
+                client.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code
+                == 401
+            )
+        # The account still exists — this signs out, it does not delete.
+        assert client.post(
+            "/auth/login", json={"user_id": uid, "password": PASSWORD}
+        ).status_code == 200
+
+
+def test_logout_everywhere_needs_a_session():
+    with TestClient(app) as client:
+        client.cookies.clear()
+        assert client.post("/auth/logout-all").status_code == 401

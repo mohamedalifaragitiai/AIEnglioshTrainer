@@ -260,7 +260,8 @@
   <!-- Demo data is a setup affordance, not something a learner should ever
        press: it writes fabricated history into their real progress. -->
   <button id="seedBtn" class="hidden">Load demo</button>
-  <button id="themeBtn" title="Switch between dark and light">🌙</button>
+  <button id="settingsBtn" class="hidden" title="Account settings" aria-label="Account settings">⚙️</button>
+  <button id="themeBtn" title="Switch between dark and light" aria-label="Switch between dark and light">🌙</button>
   <button id="signOutBtn" class="hidden">Sign out</button>
 </header>
 <nav>
@@ -477,6 +478,44 @@
   </div>
 </div>
 
+<div id="settingsModal" class="modal-back hidden">
+  <div class="modal" style="text-align:left;max-width:560px;max-height:88vh;overflow:auto">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3 style="margin:0">Account settings</h3>
+      <button id="setClose" aria-label="Close settings">✕</button>
+    </div>
+    <div id="setMsg" class="banner hidden" style="margin-top:12px"></div>
+
+    <h4 style="margin:20px 0 8px">Profile</h4>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label class="muted" for="setName" style="font-size:12.5px">Display name</label>
+      <input id="setName" placeholder="Your name"/>
+      <label class="muted" for="setLevel" style="font-size:12.5px">Level</label>
+      <select id="setLevel"></select>
+      <button id="setSaveProfile" class="btn-primary" style="align-self:flex-start">Save profile</button>
+    </div>
+
+    <h4 style="margin:22px 0 8px">Password</h4>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <input id="setCurrentPw" type="password" placeholder="Current password" autocomplete="current-password"/>
+      <input id="setNewPw" type="password" placeholder="New password" autocomplete="new-password"/>
+      <span class="muted" id="setPwHint" style="font-size:12px"></span>
+      <button id="setSavePw" class="btn-primary" style="align-self:flex-start">Change password</button>
+    </div>
+
+    <h4 style="margin:22px 0 8px">Sessions</h4>
+    <p class="muted" style="margin:0 0 8px;font-size:13px">
+      Signs you out on every device, including this one.</p>
+    <button id="setLogoutAll">Sign out everywhere</button>
+
+    <h4 style="margin:22px 0 8px;color:var(--bad)">Delete account</h4>
+    <p class="muted" style="margin:0 0 8px;font-size:13px">
+      Permanently removes your profile and every conversation, score and reading
+      attempt. This cannot be undone.</p>
+    <button id="setDelete" class="btn-danger">Delete my account</button>
+  </div>
+</div>
+
 <!-- First-run level picker. current_level defaults to 0, which is also
      "Beginner", so the server carries a separate level_selected flag — this is
      what stops the app assuming a level nobody chose. -->
@@ -635,6 +674,7 @@ async function boot(){
   $('#modelsPill').classList.toggle('hidden',!isAdmin);
   $('#verPill').classList.toggle('hidden',!isAdmin);
   $('#seedBtn').classList.toggle('hidden',!operator);
+  $('#settingsBtn').classList.toggle('hidden',!signedInAs);
   // The learner keeps the credit line; "fully offline, self-hosted v0.2.0"
   // is deployment trivia that means nothing to someone practising English.
   $('#footMeta').classList.toggle('hidden',!operator);
@@ -653,8 +693,9 @@ async function boot(){
   try{const t=await api.get('/topics');renderChips(t.recommended||[]);}catch{}
   await refreshUsers();
 }
+let usersCache=[];
 async function refreshUsers(){
-  const users=await api.get('/users');const sel=$('#userSel');sel.innerHTML='';
+  const users=await api.get('/users');usersCache=users;const sel=$('#userSel');sel.innerHTML='';
   if(!users.length){const o=document.createElement('option');o.textContent='(no learners)';o.value='';sel.appendChild(o);currentUser=null;renderAll();return;}
   users.forEach(u=>{const o=document.createElement('option');o.value=u.user_id;o.textContent=`${u.display_name}`;sel.appendChild(o);});
   currentUser=(currentUser&&users.find(u=>u.user_id===currentUser))?currentUser:users[0].user_id;
@@ -846,6 +887,75 @@ async function renderStreak(){
     <div class="muted" style="font-size:11.5px;margin-top:8px">Less
       <i class="sq h0"></i><i class="sq h1"></i><i class="sq h2"></i><i class="sq h3"></i><i class="sq h4"></i> More</div>`;
 }
+
+// --- account settings -------------------------------------------------------
+function setMsg(text,bad){
+  const el=$('#setMsg');
+  el.textContent=text; el.classList.remove('hidden');
+  el.style.borderLeft='3px solid '+(bad?'var(--bad)':'var(--good)');
+  el.style.color=bad?'var(--bad)':'var(--good)';
+}
+function openSettings(){
+  const u=(usersCache||[]).find(x=>x.user_id===currentUser);
+  $('#setName').value=u?u.display_name:'';
+  if(!$('#setLevel').options.length)
+    $('#setLevel').innerHTML=LEVELS.map((n,i)=>`<option value="${i}">${i} · ${n}</option>`).join('');
+  $('#setLevel').value=String(currentLevel||0);
+  $('#setPwHint').textContent=minPwLen>1?`At least ${minPwLen} characters.`:'';
+  $('#setMsg').classList.add('hidden');
+  $('#setCurrentPw').value=''; $('#setNewPw').value='';
+  $('#settingsModal').classList.remove('hidden');
+}
+$('#settingsBtn').addEventListener('click',openSettings);
+$('#setClose').addEventListener('click',()=>$('#settingsModal').classList.add('hidden'));
+$('#settingsModal').addEventListener('click',e=>{
+  if(e.target.id==='settingsModal')$('#settingsModal').classList.add('hidden');
+});
+$('#setSaveProfile').addEventListener('click',async()=>{
+  const name=$('#setName').value.trim();
+  if(!name)return setMsg('A display name cannot be empty.',true);
+  try{
+    await api.patch(`/users/${encodeURIComponent(currentUser)}`,{display_name:name});
+    // POST /level, not PATCH: choosing a level is a decision, and PATCH is what
+    // the scoring pipeline uses when it moves someone automatically.
+    await api.post(`/users/${encodeURIComponent(currentUser)}/level`,{current_level:+$('#setLevel').value});
+    await refreshUsers();
+    setMsg('Profile saved.',false);
+  }catch(e){setMsg('Could not save: '+e.message,true);}
+});
+$('#setSavePw').addEventListener('click',async()=>{
+  const cur=$('#setCurrentPw').value, next=$('#setNewPw').value;
+  if(!cur||!next)return setMsg('Both the current and the new password are required.',true);
+  try{
+    const s=await api.post('/auth/password',{current_password:cur,new_password:next});
+    // The change revokes every other session and returns a fresh token for this
+    // one; storing it is what keeps the tab you are in signed in.
+    if(s&&s.token)tok.set(s.token);
+    $('#setCurrentPw').value=''; $('#setNewPw').value='';
+    setMsg('Password changed. Other devices have been signed out.',false);
+  }catch(e){
+    let m=e.message; try{m=JSON.parse(m).detail||m;}catch{}
+    setMsg(m,true);
+  }
+});
+$('#setLogoutAll').addEventListener('click',async()=>{
+  if(!confirm('Sign out on every device, including this one?'))return;
+  try{await api.post('/auth/logout-all');}catch{}
+  tok.set(null); location.reload();
+});
+$('#setDelete').addEventListener('click',async()=>{
+  const typed=prompt(`This deletes your profile and everything in it, permanently.
+
+Type your learner id (${currentUser}) to confirm:`);
+  if(typed===null)return;
+  // Typing the id rather than clicking twice: this is unrecoverable, and a
+  // confirm dialog is something people dismiss without reading.
+  if(typed.trim()!==currentUser)return setMsg('That did not match your learner id — nothing was deleted.',true);
+  try{
+    await fetch(`/users/${encodeURIComponent(currentUser)}`,{method:'DELETE',headers:authHead()});
+    tok.set(null); location.reload();
+  }catch(e){setMsg('Could not delete the account: '+e.message,true);}
+});
 
 // --- transcript search (folded into Conversations) --------------------------
 // Conversations answers "how did that session go"; searching what was actually

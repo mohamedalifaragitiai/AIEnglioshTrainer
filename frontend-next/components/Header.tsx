@@ -141,6 +141,9 @@ export function Header() {
             Load demo data
           </button>
         )}
+        <Link href="/settings" className="btn" title="Account settings" aria-label="Account settings">
+          ⚙️
+        </Link>
         <ThemeToggle />
         {signedInAs && (
           <button className="btn" onClick={signOut} title={`Signed in as ${signedInAs}`}>
