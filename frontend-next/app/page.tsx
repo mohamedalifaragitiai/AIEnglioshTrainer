@@ -14,6 +14,7 @@ import {
 import { useUser } from "./user-context";
 import { SkillRadar } from "@/components/SkillRadar";
 import { StreakHeatmap } from "@/components/StreakHeatmap";
+import { DashboardSkeleton } from "@/components/Skeleton";
 import { OverallTrend } from "@/components/OverallTrend";
 import { LevelPicker, SkillBars } from "@/components/widgets";
 import {
@@ -59,7 +60,7 @@ export default function Dashboard() {
   if (!currentUser)
     return <p className="text-muted">Create or select a learner to see the dashboard.</p>;
   if (err) return <p className="text-bad">Could not load: {err}</p>;
-  if (!ov) return <p className="text-muted">Loading…</p>;
+  if (!ov) return <DashboardSkeleton />;
 
   const eta = ov.estimated_days_to_next_level;
   const setLevel = async (l: number) => {

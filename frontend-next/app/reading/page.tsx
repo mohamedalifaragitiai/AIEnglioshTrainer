@@ -224,11 +224,14 @@ export default function ReadingPage() {
                 : "bg-gradient-to-br from-accent to-accent2 text-white"
             } ${state === "scoring" ? "opacity-50" : ""}`}
             title="Tap to read aloud"
+            aria-label="Tap to read aloud"
           >
             {state === "recording" ? "⏹" : "🎙️"}
           </button>
           <div>
-            <div className="font-semibold">{status}</div>
+            <div className="font-semibold" role="status" aria-live="polite">
+              {status}
+            </div>
             {passage && (
               <div className="text-muted text-xs">
                 {passage.words} words · level {passage.level}

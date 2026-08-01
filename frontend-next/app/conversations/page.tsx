@@ -10,6 +10,7 @@ import type {
   Recommendation,
 } from "@/lib/types";
 import { StatTile } from "@/components/panels";
+import { ListSkeleton } from "@/components/Skeleton";
 import { useUser } from "../user-context";
 
 /** 75/60 bands, so a number's meaning is legible before it is read. */
@@ -100,7 +101,13 @@ export default function ConversationsPage() {
 
   if (!currentUser) return <div className="text-muted">Select a learner first.</div>;
   if (error) return <div className="card text-muted">Could not load: {error}</div>;
-  if (!rows || !analysis) return <div className="text-muted">Loading your conversations…</div>;
+  if (!rows || !analysis)
+    return (
+      <div className="space-y-4">
+        <span className="sr-only">Loading your conversations…</span>
+        <ListSkeleton rows={4} />
+      </div>
+    );
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();

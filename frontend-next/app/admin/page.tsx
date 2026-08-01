@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, AuthError } from "@/lib/api";
 import { LEVEL_NAMES, type AdminOverview, type AdminUserRow } from "@/lib/types";
 import { StatTile } from "@/components/panels";
+import { ListSkeleton } from "@/components/Skeleton";
 import { useUser } from "../user-context";
 
 type SortKey = "display_name" | "assessments" | "sessions" | "avg_overall" | "last_active";
@@ -86,7 +87,7 @@ export default function AdminPage() {
       </div>
     );
   }
-  if (!data) return <div className="text-muted">Loading the cohort…</div>;
+  if (!data) return <ListSkeleton rows={5} />;
 
   const t = data.totals;
   const th = "text-left py-1.5 px-2 font-medium";

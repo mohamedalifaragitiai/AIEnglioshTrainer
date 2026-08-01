@@ -257,6 +257,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
               : "bg-gradient-to-br from-accent to-teal-600 text-[#052a25]"
           } ${state === "busy" ? "opacity-50" : ""}`}
           title="Tap to speak"
+          aria-label="Tap to speak"
         >
           {/* U+FE0F on the mic: without it many platforms render the
               monochrome text glyph instead of the colour emoji. */}
