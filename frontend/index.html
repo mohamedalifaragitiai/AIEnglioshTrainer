@@ -226,6 +226,7 @@
     .levels{grid-template-columns:repeat(2,1fr)}
     header .muted{display:none}
   }
+  mark{background:var(--accent-bg);color:var(--accent);border-radius:4px;padding:0 2px}
   footer{padding:26px var(--gutter) 34px;text-align:center;color:var(--dim);font-size:12.5px}
   footer a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line)}
   /* End-of-session results modal */
@@ -267,7 +268,6 @@
   <button data-tab="practice">Practice</button>
   <button data-tab="reading">Reading</button>
   <button data-tab="convos">Conversations</button>
-  <button data-tab="history">History</button>
   <button data-tab="report">Report</button>
   <!-- Monitor is machine state (VRAM, degradation ladder, model status): it
        belongs to whoever runs the box, not to someone practising English.
@@ -417,25 +417,16 @@
     <div class="card hidden" id="readHistory" style="margin-top:16px"></div>
   </section>
 
-  <!-- HISTORY (everything said, newest first) -->
-  <section id="history" class="hidden">
-    <div class="card">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h3 style="margin:0">Chat history</h3>
-        <input id="histSearch" placeholder="Search what was said" style="min-width:220px"/>
-      </div>
-      <div class="muted" id="histNote" style="font-size:12.5px;margin:8px 0 12px"></div>
-      <div id="histList"></div>
-    </div>
-  </section>
-
   <!-- CONVERSATIONS (analysis across all, then one at a time) -->
   <section id="convos" class="hidden">
     <div id="convOverview"></div>
     <div class="card" style="margin-top:16px">
-      <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
         <h3 style="margin:0">Your conversations</h3>
-        <button id="convRefresh">Refresh</button>
+        <div class="row" style="gap:8px">
+          <input id="convSearch" placeholder="Search everything you have said" style="min-width:230px"/>
+          <button id="convRefresh">Refresh</button>
+        </div>
       </div>
       <div class="muted" id="convNote" style="font-size:12.5px;margin:8px 0 12px"></div>
       <div id="convList"></div>
@@ -680,12 +671,11 @@ $('#seedBtn').addEventListener('click',async()=>{if(!currentUser)return alert('S
 // tabs
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-  ['dash','practice','reading','convos','history','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  ['dash','practice','reading','convos','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
   if(b.dataset.tab==='dash')renderDashboard();
   if(b.dataset.tab==='report')renderReport();
   if(b.dataset.tab==='admin')renderAdmin();
   if(b.dataset.tab==='convos')renderConversations();
-  if(b.dataset.tab==='history')renderHistory();
   if(b.dataset.tab==='reading')initReading();
   if(b.dataset.tab==='monitor')startMonitor();else stopMonitor();
 }));
@@ -857,39 +847,42 @@ async function renderStreak(){
       <i class="sq h0"></i><i class="sq h1"></i><i class="sq h2"></i><i class="sq h3"></i><i class="sq h4"></i> More</div>`;
 }
 
-// --- chat history -----------------------------------------------------------
+// --- transcript search (folded into Conversations) --------------------------
+// Conversations answers "how did that session go"; searching what was actually
+// said is the same question from the other end, so it lives in the same tab
+// rather than a second one a learner has to guess between.
 let histData=null;
-async function renderHistory(){
-  if(!currentUser){$('#histNote').textContent='Select a learner first.';return;}
-  $('#histNote').textContent='Loading…';
-  try{histData=await api.get(`/users/${encodeURIComponent(currentUser)}/history`);}
-  catch(e){$('#histNote').textContent='Could not load: '+e.message;return;}
-  drawHistory();
-}
-function drawHistory(){
-  if(!histData)return;
-  const q=($('#histSearch').value||'').trim().toLowerCase();
-  let shown=0;
+function drawSearchResults(){
+  const q=($('#convSearch').value||'').trim().toLowerCase();
+  const list=$('#convList');
+  if(!q){renderConvList();return;}
+  if(!histData){list.innerHTML='<p class="muted">Loading transcripts…</p>';return;}
+  let hits=0;
   const html=histData.map(c=>{
-    const msgs=c.messages.filter(m=>!q||(m.transcript||'').toLowerCase().includes(q));
+    const msgs=c.messages.filter(m=>(m.transcript||'').toLowerCase().includes(q));
     if(!msgs.length)return '';
-    shown+=msgs.length;
-    return `<div style="margin-bottom:18px">
-      <div class="muted" style="font-size:12px;margin-bottom:8px">${fmtDate(c.started_at)}</div>
+    hits+=msgs.length;
+    return `<div style="margin-bottom:16px">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <div class="muted" style="font-size:12px">${fmtDate(c.started_at)}</div>
+        <button data-open="${esc(c.session_id)}" style="padding:4px 10px;font-size:12px">Open analysis</button>
+      </div>
       ${msgs.map(m=>`<div class="turn ${m.role==='coach'?'coach':'learner'}">
-        <div>${esc(m.transcript||'…')}</div>
+        <div>${highlight(m.transcript||'',q)}</div>
         <div class="turn-meta"><span>${m.role==='coach'?'Coach':'You'}</span></div></div>`).join('')}
     </div>`;
   }).join('');
-  $('#histList').innerHTML=html||'<p class="muted">Nothing matches that search.</p>';
-  $('#histNote').textContent=`${shown} message${shown===1?'':'s'}${q?' matching “'+esc(q)+'”':''}.`;
+  list.innerHTML=html||'<p class="muted">Nothing matches that search.</p>';
+  $('#convNote').textContent=`${hits} message${hits===1?'':'s'} matching “${esc(q)}”.`;
+  list.querySelectorAll('button[data-open]').forEach(b=>
+    b.addEventListener('click',()=>openConversation(b.dataset.open)));
 }
-$('#histSearch').addEventListener('input',drawHistory);
-// Onboarding: the empty dashboard's one action is to go and fill it.
-$('#startFirst').addEventListener('click',()=>{
-  document.querySelector('nav button[data-tab="practice"]').click();
-  window.scrollTo({top:0,behavior:'smooth'});
-});
+// Mark the match so the eye lands on it without re-reading the whole turn.
+function highlight(text,q){
+  const i=text.toLowerCase().indexOf(q);
+  if(i<0)return esc(text);
+  return esc(text.slice(0,i))+'<mark>'+esc(text.slice(i,i+q.length))+'</mark>'+esc(text.slice(i+q.length));
+}
 
 // --- conversations: the analysis across all, then one at a time ------------
 function scoreClass(v){return v==null?'s-none':v>=75?'s-good':v>=60?'s-mid':'s-low';}
@@ -904,6 +897,7 @@ function recCards(recs){
   return recs.map(r=>`<div class="rec"><h4>${esc(r.skill)} · ${Math.round(r.score)} <span class="pill">${esc(r.priority)}</span></h4>
     <ul>${r.actions.map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`).join('');
 }
+let convList=null;
 async function renderConversations(){
   if(!currentUser){$('#convNote').textContent='Select a learner first.';return;}
   $('#convNote').textContent='Loading…';
@@ -915,6 +909,12 @@ async function renderConversations(){
       api.get(`/users/${encodeURIComponent(currentUser)}/analysis`),
     ]);
   }catch(e){$('#convNote').textContent='Could not load: '+e.message;return;}
+  convList=list;
+  // Transcripts load in the background: search should be ready by the time
+  // anyone types, but the list must not wait on the bigger payload.
+  api.get(`/users/${encodeURIComponent(currentUser)}/history`)
+    .then(h=>{histData=h; if($('#convSearch').value.trim())drawSearchResults();})
+    .catch(()=>{histData=[];});
 
   const t=analysis.trend||{};
   const arrow=t.direction==='improving'?'▲':t.direction==='declining'?'▼':'▬';
@@ -938,6 +938,10 @@ async function renderConversations(){
       ${recCards(analysis.recommendations)}
     </div>`;
 
+  renderConvList();
+}
+function renderConvList(){
+  const list=convList||[];
   $('#convNote').textContent=list.length
     ? `${list.length} conversation${list.length===1?'':'s'} — select one for the full turn-by-turn analysis.`
     : 'No conversations yet. Use the Practice tab to start one.';
@@ -990,6 +994,7 @@ async function openConversation(sid){
   box.scrollIntoView({behavior:'smooth',block:'start'});
 }
 $('#convRefresh').addEventListener('click',renderConversations);
+$('#convSearch').addEventListener('input',drawSearchResults);
 
 // --- admin: every learner, their activity and their scores -----------------
 let adminData=null;

@@ -153,7 +153,6 @@ export function Header() {
         {tab("/practice", "Practice")}
         {tab("/reading", "Reading")}
         {tab("/conversations", "Conversations")}
-        {tab("/history", "History")}
         {tab("/report", "Report")}
         {/* Monitor is machine state — VRAM, the degradation ladder, model
             status. That belongs to whoever runs the box, not to someone

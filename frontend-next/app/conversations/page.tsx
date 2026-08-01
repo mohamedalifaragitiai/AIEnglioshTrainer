@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import type {
   ConversationReport,
   ConversationRow,
   FullAnalysis,
+  HistoryConversation,
   Recommendation,
 } from "@/lib/types";
 import { StatTile } from "@/components/panels";
@@ -79,11 +80,16 @@ export default function ConversationsPage() {
   const [analysis, setAnalysis] = useState<FullAnalysis | null>(null);
   const [open, setOpen] = useState<ConversationReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [transcripts, setTranscripts] = useState<HistoryConversation[] | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!currentUser) return;
     setOpen(null);
     setError(null);
+    // Transcripts load alongside, not before: search should be ready by the
+    // time anyone types, but the list must not wait on the bigger payload.
+    api.history(currentUser).then(setTranscripts).catch(() => setTranscripts([]));
     Promise.all([api.conversations(currentUser), api.analysis(currentUser)])
       .then(([r, a]) => {
         setRows(r);
@@ -95,6 +101,25 @@ export default function ConversationsPage() {
   if (!currentUser) return <div className="text-muted">Select a learner first.</div>;
   if (error) return <div className="card text-muted">Could not load: {error}</div>;
   if (!rows || !analysis) return <div className="text-muted">Loading your conversations…</div>;
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || !transcripts) return null;
+    return transcripts
+      .map((c) => ({
+        ...c,
+        messages: c.messages.filter((m) => (m.transcript || "").toLowerCase().includes(q)),
+      }))
+      .filter((c) => c.messages.length > 0);
+  }, [query, transcripts]);
+
+  const hits = matches?.reduce((n, c) => n + c.messages.length, 0) ?? 0;
+
+  const openSession = (sessionId: string) =>
+    api
+      .conversation(currentUser!, sessionId)
+      .then(setOpen)
+      .catch((e) => setError((e as Error).message));
 
   const arrow =
     analysis.trend.direction === "improving"
@@ -148,22 +173,62 @@ export default function ConversationsPage() {
       </div>
 
       <div className="card">
-        <h2 className="font-semibold mb-1">Your conversations</h2>
+        <div className="flex justify-between items-center gap-3 flex-wrap mb-1">
+          <h2 className="font-semibold">Your conversations</h2>
+          <input
+            className="btn text-left"
+            placeholder="Search everything you have said"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <p className="text-muted text-xs mb-3">
-          {rows.length
-            ? `${rows.length} conversation${rows.length === 1 ? "" : "s"} — select one for the full turn-by-turn analysis.`
-            : "No conversations yet. Use the Practice tab to start one."}
+          {matches
+            ? `${hits} message${hits === 1 ? "" : "s"} matching “${query}”.`
+            : rows.length
+              ? `${rows.length} conversation${rows.length === 1 ? "" : "s"} — select one for the full turn-by-turn analysis.`
+              : "No conversations yet. Use the Practice tab to start one."}
         </p>
+        {matches ? (
+          matches.length === 0 ? (
+            <p className="text-muted text-sm">Nothing matches that search.</p>
+          ) : (
+            <div className="space-y-5">
+              {matches.map((c) => (
+                <div key={c.session_id}>
+                  <div className="flex justify-between items-baseline gap-3">
+                    <div className="text-muted text-xs">{fmtDate(c.started_at)}</div>
+                    <button className="btn text-xs" onClick={() => openSession(c.session_id)}>
+                      Open analysis
+                    </button>
+                  </div>
+                  <div className="space-y-2 mt-2">
+                    {c.messages.map((m, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-xl px-4 py-2.5 max-w-[82%] ${
+                          m.role === "coach"
+                            ? "bg-accent2/10 border border-line"
+                            : "bg-panel2 border border-line ml-auto"
+                        }`}
+                      >
+                        <div>{m.transcript || "…"}</div>
+                        <div className="text-dim text-xs mt-1">
+                          {m.role === "coach" ? "Coach" : "You"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
         <div className="space-y-2.5">
           {rows.map((c) => (
             <button
               key={c.session_id}
-              onClick={() =>
-                api
-                  .conversation(currentUser, c.session_id)
-                  .then(setOpen)
-                  .catch((e) => setError((e as Error).message))
-              }
+              onClick={() => openSession(c.session_id)}
               className="w-full flex items-center gap-4 text-left rounded-xl border border-line bg-panel px-4 py-3 hover:border-accent hover:bg-panel2 transition"
             >
               <Score value={c.overall} />
@@ -180,6 +245,7 @@ export default function ConversationsPage() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {open && (
