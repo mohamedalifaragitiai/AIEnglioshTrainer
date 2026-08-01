@@ -52,7 +52,10 @@ def test_report_downloads_all_formats():
         uid = _seeded_user(client)
         expected = {
             "json": (b"{", "application/json"),
-            "csv": (b"created_at", "text/csv"),
+            # The CSV now opens with a "# ..." attribution line, so the header
+            # is the SECOND row. Readers that cannot skip comments need
+            # skiprows=1 (pandas: comment="#").
+            "csv": (b"# ", "text/csv"),
             "xlsx": (b"PK", "application/vnd.openxmlformats"),
             "pdf": (b"%PDF-", "application/pdf"),
         }
@@ -74,3 +77,54 @@ def test_insights_missing_user_404():
     with TestClient(app) as client:
         assert client.get("/users/ghost/gaps").status_code == 404
         assert client.get("/users/ghost/plan").status_code == 404
+
+
+def test_every_report_format_carries_the_attribution():
+    """All four renderers read one constant. This is what stops three of them
+    quietly losing the credit the next time a format is touched."""
+    import io
+    import json as jsonlib
+    import zipfile
+
+    from backend.coldpath.reporting import AUTHOR
+
+    with TestClient(app) as client:
+        uid = _seeded_user(client)
+
+        body = client.get(f"/users/{uid}/report", params={"format": "json"}).json()
+        assert body["report"]["author"] == AUTHOR
+        assert AUTHOR in body["report"]["copyright"]
+
+        csv_text = client.get(f"/users/{uid}/report", params={"format": "csv"}).text
+        first, second = csv_text.splitlines()[:2]
+        assert AUTHOR in first
+        # The credit must not displace the header a parser looks for.
+        assert second.startswith("created_at")
+
+        pdf = client.get(f"/users/{uid}/report", params={"format": "pdf"}).content
+        # PDF content streams are Flate-compressed, so a raw byte search finds
+        # nothing even when the text is plainly on the page. Inflate what can be
+        # inflated and search that, plus the uncompressed metadata.
+        import re as _re
+        import zlib
+
+        blobs = [pdf]
+        for m in _re.finditer(rb"stream\r?\n(.*?)endstream", pdf, _re.S):
+            try:
+                blobs.append(zlib.decompress(m.group(1)))
+            except zlib.error:
+                pass
+        assert any(AUTHOR.encode() in b for b in blobs), "no attribution anywhere in the PDF"
+
+        xlsx = client.get(f"/users/{uid}/report", params={"format": "xlsx"}).content
+        with zipfile.ZipFile(io.BytesIO(xlsx)) as z:
+            # openpyxl may write cell text inline or into a shared-string table
+            # depending on the workbook, so scan the parts rather than assume
+            # which one exists. core.xml is the metadata that survives copying
+            # the cells out of the sheet.
+            names = z.namelist()
+            parts = {n: z.read(n).decode("utf-8", "replace") for n in names if n.endswith(".xml")}
+        assert any(AUTHOR in text for text in parts.values()), "no attribution in the workbook"
+        assert AUTHOR in parts["docProps/core.xml"], "author missing from document metadata"
+
+        assert jsonlib.dumps(body["report"])  # serializable, no surprises

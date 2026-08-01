@@ -106,8 +106,12 @@ def test_render_json(svc):
 def test_render_csv(svc):
     data = svc.report_data("abu_ali")
     text = reporting.render(data, "csv").decode()
-    assert "created_at,overall,pronunciation" in text.splitlines()[0]
-    assert len(text.strip().splitlines()) == 7  # header + 6 rows
+    lines = text.strip().splitlines()
+    # Row 1 is the attribution comment; the header a parser looks for is row 2.
+    assert lines[0].startswith("# ")
+    assert "Abu Ali" in lines[0]
+    assert "created_at,overall,pronunciation" in lines[1]
+    assert len(lines) == 8  # comment + header + 6 rows
 
 
 def test_render_xlsx_is_valid_zip(svc):
