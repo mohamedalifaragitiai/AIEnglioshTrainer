@@ -176,7 +176,20 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                     del pending[:frame_bytes]
                     utt = segmenter.push(frame)
                     if utt:
+                        # Log the size that arrived. When a turn produces nothing
+                        # the first question is whether any audio reached the
+                        # server at all, and without this the answer was
+                        # unknowable from the logs.
+                        log.info(
+                            "ws_turn_start",
+                            session_id=session.session_id,
+                            mode=mode,
+                            reply=ctx.reply,
+                            audio_bytes=len(utt),
+                            audio_seconds=round(len(utt) / (settings.hotpath_sample_rate * 2), 2),
+                        )
                         await _run_turn(ws, pipeline, ctx, utt, stop)
+                        log.info("ws_turn_done", session_id=session.session_id)
 
             elif (text := msg.get("text")) is not None:
                 try:
@@ -194,8 +207,26 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                     else:
                         utt = segmenter.flush()
                     if utt:
+                        # Log the size that arrived. When a turn produces nothing
+                        # the first question is whether any audio reached the
+                        # server at all, and without this the answer was
+                        # unknowable from the logs.
+                        log.info(
+                            "ws_turn_start",
+                            session_id=session.session_id,
+                            mode=mode,
+                            reply=ctx.reply,
+                            audio_bytes=len(utt),
+                            audio_seconds=round(len(utt) / (settings.hotpath_sample_rate * 2), 2),
+                        )
                         await _run_turn(ws, pipeline, ctx, utt, stop)
+                        log.info("ws_turn_done", session_id=session.session_id)
                     else:
+                        log.info(
+                            "ws_turn_skipped_short",
+                            session_id=session.session_id,
+                            buffered_bytes=len(pending),
+                        )
                         # Too short to be speech. ALWAYS answer an 'end' — the client
                         # blocks its mic until the turn closes, so staying silent here
                         # would strand it (and would hang any test draining the turn).

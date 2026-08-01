@@ -29,6 +29,8 @@ export default function ReadingPage() {
   const [status, setStatus] = useState("Tap the microphone and read it aloud");
   const [result, setResult] = useState<ReadingResult | null>(null);
   const [history, setHistory] = useState<ReadingHistory | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
 
   const ws = useRef<WebSocket | null>(null);
   const ac = useRef<AudioContext | null>(null);
@@ -37,6 +39,7 @@ export default function ReadingPage() {
   const startedAt = useRef(0);
   const stateRef = useRef<State>("idle");
   const passageRef = useRef<ReadingPassage | null>(null);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Refs shadow the state because the audio callback and the socket handler are
   // closures created once; reading React state there would see its first value
@@ -106,6 +109,9 @@ export default function ReadingPage() {
         }),
       );
       setStatus("Tap the microphone and read it aloud");
+      if (timer.current) clearInterval(timer.current);
+      timer.current = null;
+      setProgress(100);
     } catch (e) {
       setStatus(`Could not score: ${(e as Error).message}`);
     }
@@ -146,18 +152,34 @@ export default function ReadingPage() {
         setState("recording");
         setStatus("Reading… tap again when you finish");
       };
+      // Without these the UI had no way to learn the socket had gone: a dropped
+      // connection or a turn that never completed left "Measuring your reading…"
+      // on screen indefinitely.
+      ws.current.onerror = () =>
+        fail("The connection dropped before your reading could be measured.");
+      ws.current.onclose = (ev) => {
+        if (stateRef.current !== "idle") {
+          fail(
+            ev.code === 4401
+              ? "Your session has ended — sign in again."
+              : ev.code === 4403
+                ? "That profile is not yours."
+                : `The connection closed before the transcript came back (code ${ev.code}).`,
+          );
+        }
+      };
       ws.current.onmessage = (ev) => {
         if (typeof ev.data !== "string") return;
         const m = JSON.parse(ev.data);
         if (m.type === "final") score(m.text || "");
         if (m.type === "turn_skipped") {
+          if (timer.current) clearInterval(timer.current);
+          timer.current = null;
+          setProgress(0);
           setState("idle");
           setStatus("That was too short — tap and read the whole passage.");
         }
-        if (m.type === "error") {
-          setState("idle");
-          setStatus(`Error: ${m.detail || ""}`);
-        }
+        if (m.type === "error") fail(`Error: ${m.detail || ""}`);
       };
     } catch (e) {
       setState("idle");
@@ -166,16 +188,53 @@ export default function ReadingPage() {
     }
   };
 
+  // Transcribing a 30-second read takes real time here, and the guard can defer
+  // it further. Silence for that long is indistinguishable from a hang, so show
+  // elapsed seconds, ease a bar towards 90%, and give up loudly rather than
+  // never.
+  const READ_TIMEOUT_MS = 90_000;
+
+  const fail = (msg: string) => {
+    if (stateRef.current === "idle") return;
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    setProgress(0);
+    setElapsed(0);
+    setState("idle");
+    setStatus(msg);
+    try {
+      ws.current?.close();
+    } catch {}
+  };
+
   const stop = () => {
     setState("scoring");
     setStatus("Measuring your reading…");
+    const t0 = Date.now();
+    if (timer.current) clearInterval(timer.current);
+    timer.current = setInterval(() => {
+      const ms = Date.now() - t0;
+      setElapsed(Math.round(ms / 1000));
+      // Asymptotic: quick at first, never claiming 100% while the server works.
+      setProgress(Math.min(90, Math.round(90 * (1 - Math.exp(-ms / 12000)))));
+      if (ms > READ_TIMEOUT_MS)
+        fail(
+          "Timed out waiting for the transcript. Your recording may have been too long, or the machine is under load — try again.",
+        );
+    }, 500);
     try {
       ws.current?.send(JSON.stringify({ type: "end" }));
     } catch {}
     teardown();
   };
 
-  useEffect(() => () => teardown(), []);
+  useEffect(
+    () => () => {
+      teardown();
+      if (timer.current) clearInterval(timer.current);
+    },
+    [],
+  );
 
   if (!currentUser) return <div className="text-muted">Select a learner first.</div>;
 
@@ -232,9 +291,23 @@ export default function ReadingPage() {
             <div className="font-semibold" role="status" aria-live="polite">
               {status}
             </div>
-            {passage && (
+            {passage && state !== "scoring" && (
               <div className="text-muted text-xs">
                 {passage.words} words · level {passage.level}
+              </div>
+            )}
+            {state === "scoring" && (
+              <div className="mt-2 max-w-xs">
+                <div className="h-1.5 rounded-full bg-panel2 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent to-accent2 transition-[width] duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div className="text-muted text-[11px] mt-1">
+                  Transcribing your recording — {elapsed}s elapsed
+                  {elapsed > 25 && " (a long passage takes longer, and scoring waits its turn while the machine is busy)"}
+                </div>
               </div>
             )}
           </div>

@@ -242,6 +242,12 @@
     .levels{grid-template-columns:repeat(2,1fr)}
     header .muted{display:none}
   }
+  /* Determinate-looking progress for a job whose length we cannot know: it
+     eases towards 90% and only completes when the transcript actually lands,
+     so it never claims to be finished while the server is still working. */
+  .progress{height:6px;border-radius:999px;background:var(--panel2);overflow:hidden}
+  .progress i{display:block;height:100%;width:0;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s ease}
   mark{background:var(--accent-bg);color:var(--accent);border-radius:4px;padding:0 2px}
   footer{padding:26px var(--gutter) 34px;text-align:center;color:var(--dim);font-size:12.5px}
   footer a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line)}
@@ -324,6 +330,8 @@
       <div class="card"><h3>Overall trend</h3><canvas id="trend" width="470" height="300"></canvas></div>
       <div class="card"><h3>Study plan</h3><div id="plan"></div></div>
     </div>
+    <div style="height:16px"></div>
+    <div class="card hidden" id="dashReading"></div>
     <div style="height:16px"></div>
     <div class="card" id="dashAssess">
       <div class="row" style="justify-content:space-between;margin-bottom:4px">
@@ -427,6 +435,10 @@
         <div>
           <div id="readStatus" role="status" aria-live="polite" style="font-weight:600">Tap the microphone and read it aloud</div>
           <div class="muted" id="readHint" style="font-size:12px"></div>
+          <div id="readProgWrap" class="hidden" style="margin-top:8px;max-width:320px">
+            <div class="progress"><i id="readProg"></i></div>
+            <div class="muted" id="readElapsed" style="font-size:11.5px;margin-top:4px"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -783,18 +795,64 @@ async function startReading(){
   const kq=tok.get()?`&token=${encodeURIComponent(tok.get())}`:'';
   readWs=new WebSocket(`${proto}://${location.host}/ws/session?user_id=${encodeURIComponent(currentUser)}&mode=reading&ptt=1&reply=0${kq}`);
   readWs.binaryType='arraybuffer';
+  // Without onerror/onclose the UI had no way to learn the socket had gone: a
+  // dropped connection or a turn that never completed left "Measuring your
+  // reading…" on screen forever, which is exactly what happened.
+  readWs.onerror=()=>failReading('The connection dropped before your reading could be measured.');
+  readWs.onclose=ev=>{
+    if(readState==='scoring'||readState==='recording'){
+      failReading(ev.code===4401?'Your session has ended — sign in again.'
+        :ev.code===4403?'That profile is not yours.'
+        :`The connection closed before the transcript came back (code ${ev.code}).`);
+    }
+  };
   readWs.onmessage=ev=>{
     if(typeof ev.data!=='string')return;      // reply=0, so no audio is expected
     const m=JSON.parse(ev.data);
     if(m.type==='final')scoreReading(m.text||'');
-    if(m.type==='turn_skipped')readSetState('idle','That was too short — tap and read the whole passage.');
-    if(m.type==='error')readSetState('idle','Error: '+(m.detail||''));
+    if(m.type==='turn_skipped'){endReadProgress(false);readSetState('idle','That was too short — tap and read the whole passage.');}
+    if(m.type==='error')failReading('Error: '+(m.detail||''));
   };
   readWs.onopen=()=>{readT0=Date.now();readSetState('recording','Reading… tap again when you finish');};
 }
+// Transcribing a 30-second read on this box takes real time, and the guard can
+// defer it further. Silence for that long is indistinguishable from a hang, so
+// show elapsed time, ease a bar towards 90%, and give up loudly rather than
+// never.
+let readTimer=null, readDeadline=null;
+const READ_TIMEOUT_MS=90000;
+function startReadProgress(){
+  const t0=Date.now();
+  $('#readProgWrap').classList.remove('hidden');
+  clearInterval(readTimer);
+  readTimer=setInterval(()=>{
+    const ms=Date.now()-t0, secs=Math.round(ms/1000);
+    // Asymptotic: fast at first, never reaching 100 until the result lands.
+    const pct=Math.min(90,Math.round(90*(1-Math.exp(-ms/12000))));
+    $('#readProg').style.width=pct+'%';
+    $('#readElapsed').textContent=`Transcribing your recording — ${secs}s elapsed`
+      +(secs>25?' (a long passage takes longer, and scoring waits its turn while the machine is busy)':'');
+    if(ms>READ_TIMEOUT_MS)failReading('Timed out waiting for the transcript. Your recording may have been too long, or the machine is under load — try again.');
+  },500);
+}
+function endReadProgress(done){
+  clearInterval(readTimer); readTimer=null;
+  $('#readProg').style.width=done?'100%':'0';
+  setTimeout(()=>$('#readProgWrap').classList.add('hidden'),done?400:0);
+}
+function failReading(msg){
+  if(readState==='idle')return;
+  endReadProgress(false);
+  readSetState('idle',msg);
+  try{readWs&&readWs.close();}catch{}
+}
 async function stopReading(){
   readSetState('scoring','Measuring your reading…');
-  try{readWs&&readWs.readyState===1&&readWs.send(JSON.stringify({type:'end'}));}catch{}
+  startReadProgress();
+  try{readWs&&readWs.readyState===1&&readWs.send(JSON.stringify({type:'end'}));}
+  catch{failReading('Could not send the recording — the connection had already closed.');return;}
+  // Only the microphone is released here. The socket stays open: the transcript
+  // has not come back yet, and closing it is what would lose the result.
   try{readProc&&readProc.disconnect();}catch{}
   try{readStream&&readStream.getTracks().forEach(t=>t.stop());}catch{}
   try{readAc&&readAc.close();}catch{}
@@ -806,7 +864,8 @@ async function scoreReading(spoken){
   try{
     r=await api.post(`/users/${encodeURIComponent(currentUser)}/reading/score`,
       {reference:readPassage.text,spoken,duration_s:seconds,level:readPassage.level,title:readPassage.title});
-  }catch(e){readSetState('idle','Could not score: '+e.message);return;}
+  }catch(e){failReading('Could not score: '+e.message);return;}
+  endReadProgress(true);
   readSetState('idle','Tap the microphone and read it aloud');
   const box=$('#readResult'); box.classList.remove('hidden');
   box.innerHTML=`
@@ -902,6 +961,32 @@ async function renderStreak(){
     <div class="heat">${squares.join('')}</div>
     <div class="muted" style="font-size:11.5px;margin-top:8px">Less
       <i class="sq h0"></i><i class="sq h1"></i><i class="sq h2"></i><i class="sq h3"></i><i class="sq h4"></i> More</div>`;
+}
+
+async function renderDashReading(){
+  const box=$('#dashReading'); if(!box||!currentUser)return;
+  let h; try{h=await api.get(`/users/${encodeURIComponent(currentUser)}/reading/attempts?limit=5`);}
+  catch{box.classList.add('hidden');return;}
+  if(!h.attempts.length){box.classList.add('hidden');return;}
+  const s=h.summary;
+  box.classList.remove('hidden');
+  box.innerHTML=`<div class="row" style="justify-content:space-between;align-items:baseline">
+      <h3 style="margin:0">Reading</h3>
+      <button id="dashReadMore" style="padding:4px 12px;font-size:12px">Open reading practice</button>
+    </div>
+    <div class="grid tiles" style="margin-top:12px">
+      <div class="card tile"><div class="l">Attempts</div><div class="v">${s.attempts}</div>
+        <div class="s">${s.words_read} words read</div></div>
+      <div class="card tile"><div class="l">Best</div><div class="v">${s.best_accuracy!=null?s.best_accuracy+'%':'—'}</div>
+        <div class="s">average ${s.avg_accuracy!=null?s.avg_accuracy+'%':'—'}</div></div>
+      <div class="card tile"><div class="l">Pace</div><div class="v">${s.avg_wpm!=null?Math.round(s.avg_wpm):'—'}</div>
+        <div class="s">words per minute</div></div>
+      <div class="card tile"><div class="l">Last read</div>
+        <div class="v">${h.attempts[0].accuracy!=null?h.attempts[0].accuracy+'%':'—'}</div>
+        <div class="s">${esc(h.attempts[0].title||'')}</div></div>
+    </div>`;
+  $('#dashReadMore').addEventListener('click',()=>
+    document.querySelector('nav button[data-tab="reading"]').click());
 }
 
 // --- account settings -------------------------------------------------------
@@ -1209,7 +1294,7 @@ async function renderDashboard(){
     api.get(`/users/${currentUser}/progress`),api.get(`/users/${currentUser}/assessments?limit=200`),
     api.get(`/users/${currentUser}/progress/trend?skill=overall&days=3650`),
     api.get(`/users/${currentUser}/gaps`),api.get(`/users/${currentUser}/plan`)]);}catch(e){return;}
-  currentLevel=ov.current_level;currentStreak=ov.streak_days;renderStreak();
+  currentLevel=ov.current_level;currentStreak=ov.streak_days;renderStreak();renderDashReading();
   $('#lvlBadge').textContent='Level '+ov.current_level+' · '+LEVELS[ov.current_level];
   $('#practiceLvl').textContent='Level '+ov.current_level+' · '+LEVELS[ov.current_level];renderLevels();
   const fresh=assess.length===0;

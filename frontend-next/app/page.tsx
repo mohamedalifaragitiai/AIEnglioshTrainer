@@ -14,6 +14,7 @@ import {
 import { useUser } from "./user-context";
 import { SkillRadar } from "@/components/SkillRadar";
 import { StreakHeatmap } from "@/components/StreakHeatmap";
+import { ReadingSummary } from "@/components/ReadingSummary";
 import { DashboardSkeleton } from "@/components/Skeleton";
 import { OverallTrend } from "@/components/OverallTrend";
 import { LevelPicker, SkillBars } from "@/components/widgets";
@@ -135,6 +136,8 @@ export default function Dashboard() {
         <div className="card-title">Top gaps</div>
         <GapsPanel gaps={gaps} />
       </div>
+
+      {currentUser && <ReadingSummary userId={currentUser} />}
 
       <div className="card">
         <div className="flex justify-between items-center mb-1">
