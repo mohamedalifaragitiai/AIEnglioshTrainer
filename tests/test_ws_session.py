@@ -295,3 +295,31 @@ def test_ws_persists_session_and_utterances():
         assert len(sessions) == 1
         utts = client.get(f"/sessions/{sessions[0]['session_id']}/utterances").json()
         assert len(utts) == 2
+
+
+def test_reading_mode_returns_a_transcript_without_a_coach_reply():
+    """Reading practice wants the words back, not a conversation: no LLM, no TTS,
+    and no blank coach bubble in the learner's history."""
+    with TestClient(app) as client:
+        uid = "rd" + new_id()[:8]
+        client.post("/users", json={"user_id": uid, "display_name": "Reader"})
+        client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
+
+        with client.websocket_connect(f"/ws/session?user_id={uid}&ptt=1&reply=0") as ws:
+            ws.receive_json()  # session
+            _speak_a_turn(ws)
+            kinds = []
+            for _ in range(6):
+                msg = _receive_within(ws)
+                kinds.append(json.loads(msg["text"])["type"] if "text" in msg else "bytes")
+                if kinds[-1] == "turn_end":
+                    break
+            ws.send_text(json.dumps({"type": "bye"}))
+
+        assert "final" in kinds, kinds
+        assert "turn_end" in kinds, "every 'end' must still be closed out"
+        assert "reply" not in kinds, "reading mode must not generate a coach reply"
+
+        sessions = client.get(f"/users/{uid}/sessions").json()
+        turns = client.get(f"/sessions/{sessions[0]['session_id']}/utterances").json()
+        assert [t["role"] for t in turns] == ["learner"], turns

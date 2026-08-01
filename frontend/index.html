@@ -18,20 +18,37 @@
     --good-bg:rgba(52,211,153,.12); --warn-bg:rgba(251,191,36,.12);
     --bad-bg:rgba(248,113,113,.12); --accent-bg:rgba(45,212,191,.10);
     --radius:14px; --shadow:0 8px 30px rgba(0,0,0,.38);
+    --glass:rgba(11,17,32,.85); --hairline:rgba(255,255,255,.10);
+    --page:radial-gradient(1200px 600px at 80% -10%, #16233f 0%, var(--bg) 55%);
+  }
+  /* Light theme. Every colour above is a variable precisely so this is a second
+     set of values rather than a second stylesheet. Chosen for contrast on a
+     bright screen: the same teal reads thin on white, so accents darken. */
+  :root[data-theme="light"] {
+    --bg:#f4f7fc; --bg2:#ffffff; --panel:#ffffff; --panel2:#eef2f9; --panel3:#e2e9f5;
+    --line:#d4dded;
+    --text:#101a2e; --muted:#4a5a78; --dim:#7286a5;
+    --accent:#0d9488; --accent2:#4f46e5; --indigo:#4f46e5;
+    --good:#059669; --warn:#b45309; --bad:#dc2626;
+    --good-bg:rgba(5,150,105,.10); --warn-bg:rgba(180,83,9,.10);
+    --bad-bg:rgba(220,38,38,.08); --accent-bg:rgba(13,148,136,.08);
+    --shadow:0 6px 22px rgba(16,26,46,.10);
+    --glass:rgba(255,255,255,.85); --hairline:rgba(16,26,46,.06);
+    --page:radial-gradient(1200px 600px at 80% -10%, #e6edf9 0%, var(--bg) 55%);
   }
   * { box-sizing:border-box; }
   html,body { margin:0; }
   body {
-    background:radial-gradient(1200px 600px at 80% -10%, #16233f 0%, var(--bg) 55%);
+    background:var(--page);
     color:var(--text); min-height:100vh;
     font:14.5px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:#26375a;border-radius:8px}
+  ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:var(--panel3);border-radius:8px}
   a{color:inherit}
   /* header */
   header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
-    padding:12px 22px;background:rgba(11,17,32,.85);backdrop-filter:blur(10px);
+    padding:12px 22px;background:var(--glass);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);flex-wrap:wrap}
   .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:.2px}
   .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--indigo));
@@ -39,7 +56,7 @@
   .brand span{color:var(--accent)}
   .spacer{flex:1}
   .lvl-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;
-    background:linear-gradient(135deg,#243356,#1a2743);border:1px solid var(--line);color:var(--accent2)}
+    background:var(--panel2);border:1px solid var(--line);color:var(--accent2)}
   select,button,input{font:inherit;color:var(--text);background:var(--panel2);
     border:1px solid var(--line);border-radius:10px;padding:8px 12px;outline:none;transition:.15s}
   select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(45,212,191,.15)}
@@ -53,7 +70,7 @@
   .pill{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--panel2);color:var(--muted);
     display:inline-flex;align-items:center;gap:6px}
   .pill .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
-  .pill.on{background:#052e26;color:var(--good)} .pill.off{background:#2e1414;color:var(--bad)}
+  .pill.on{background:var(--good-bg);color:var(--good)} .pill.off{background:var(--bad-bg);color:var(--bad)}
   nav{display:flex;gap:4px;padding:12px 22px 0;flex-wrap:wrap;border-bottom:1px solid var(--line)}
   nav button{background:transparent;border:none;border-bottom:2px solid transparent;border-radius:10px 10px 0 0;
     padding:10px 16px;color:var(--muted);font-weight:600;transform:none}
@@ -71,11 +88,11 @@
      without another border colour — cheap depth, no extra weight. */
   .card{position:relative;overflow:hidden}
   .card::before{content:"";position:absolute;inset:0 0 auto;height:1px;
-    background:linear-gradient(90deg,transparent,rgba(255,255,255,.10),transparent)}
+    background:linear-gradient(90deg,transparent,var(--hairline),transparent)}
   .tile{transition:.18s} .tile:hover{border-color:var(--accent);transform:translateY(-2px)}
   .card h3{margin:0 0 14px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
   .tile .l{color:var(--muted);font-size:12.5px} .tile .v{font-size:30px;font-weight:800;margin-top:2px;
-    background:linear-gradient(135deg,#fff,#b9c6e6);-webkit-background-clip:text;background-clip:text;color:transparent}
+    color:var(--text)}
   .tile .s{color:var(--accent);font-size:12px;margin-top:2px}
   canvas{width:100%;height:auto;display:block}
   table{width:100%;border-collapse:collapse;font-size:12.5px} th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
@@ -143,7 +160,7 @@
   .s-low{color:var(--bad);background:var(--bad-bg)} .s-none{color:var(--dim);background:var(--panel2)}
   .turn{padding:11px 14px;border-radius:12px;margin-bottom:9px;max-width:82%}
   .turn.learner{background:var(--panel2);border:1px solid var(--line);margin-left:auto}
-  .turn.coach{background:rgba(99,102,241,.10);border:1px solid rgba(129,140,248,.30)}
+  .turn.coach{background:var(--accent-bg);border:1px solid var(--line)}
   .turn-meta{font-size:11.5px;color:var(--dim);margin-top:7px;display:flex;gap:10px;flex-wrap:wrap}
   .corr{margin-top:8px;padding:8px 10px;border-radius:9px;background:var(--bad-bg);
     border-left:3px solid var(--bad);font-size:13px}
@@ -153,12 +170,21 @@
   .rec h4{margin:0 0 6px;font-size:14px;text-transform:capitalize}
   .rec ul{margin:6px 0 0;padding-left:18px;color:var(--muted);font-size:13px}
   .rec li{margin-bottom:4px}
+  /* streak heatmap — columns are weeks, rows are weekdays */
+  .heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px;
+    margin-top:14px;overflow-x:auto;padding-bottom:6px}
+  .sq{width:12px;height:12px;border-radius:3px;background:var(--panel2);display:block}
+  .sq.pad{background:transparent}
+  .sq.h0{background:var(--panel2)} .sq.h1{background:rgba(45,212,191,.30)}
+  .sq.h2{background:rgba(45,212,191,.52)} .sq.h3{background:rgba(45,212,191,.76)}
+  .sq.h4{background:var(--accent)}
+  .heat-legend .sq{display:inline-block;vertical-align:middle;margin:0 2px}
   footer{padding:26px 22px 34px;text-align:center;color:var(--dim);font-size:12.5px}
   footer a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line)}
   /* End-of-session results modal */
-  .modal-back{position:fixed;inset:0;background:rgba(4,9,20,.72);backdrop-filter:blur(3px);
+  .modal-back{position:fixed;inset:0;background:rgba(4,9,20,.62);backdrop-filter:blur(3px);
     display:flex;align-items:center;justify-content:center;z-index:50}
-  .modal{background:linear-gradient(180deg,var(--panel),#121b30);border:1px solid var(--line);
+  .modal{background:var(--panel);border:1px solid var(--line);
     border-radius:18px;padding:30px 34px;max-width:430px;width:calc(100% - 40px);text-align:center;
     box-shadow:0 24px 60px rgba(0,0,0,.5)}
   .modal h3{margin:0 0 8px;font-size:19px}
@@ -186,12 +212,15 @@
   <!-- Demo data is a setup affordance, not something a learner should ever
        press: it writes fabricated history into their real progress. -->
   <button id="seedBtn" class="hidden">Load demo</button>
+  <button id="themeBtn" title="Switch between dark and light">🌙</button>
   <button id="signOutBtn" class="hidden">Sign out</button>
 </header>
 <nav>
   <button data-tab="dash" class="active">Dashboard</button>
   <button data-tab="practice">Practice</button>
+  <button data-tab="reading">Reading</button>
   <button data-tab="convos">Conversations</button>
+  <button data-tab="history">History</button>
   <button data-tab="report">Report</button>
   <!-- Monitor is machine state (VRAM, degradation ladder, model status): it
        belongs to whoever runs the box, not to someone practising English.
@@ -205,6 +234,8 @@
   <section id="dash">
     <div id="dashEmpty" class="banner hidden">No assessments yet — click <b>Load demo</b>, or use <b>Practice</b>.</div>
     <div class="grid tiles" id="tiles"></div>
+    <div style="height:16px"></div>
+    <div class="card" id="streakBox"></div>
     <div style="height:16px"></div>
     <div class="card">
       <h3>Your level — pick where you want to practice</h3>
@@ -296,6 +327,48 @@
     </div>
   </section>
 
+  <!-- READING (read a level-matched passage aloud, get measured) -->
+  <section id="reading" class="hidden">
+    <div class="card" style="margin-bottom:16px">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Reading practice</h3>
+        <div class="row">
+          <label class="muted" for="readLevel">Level</label>
+          <select id="readLevel"></select>
+          <button id="readNew">New passage</button>
+        </div>
+      </div>
+      <div class="muted" style="font-size:12.5px;margin-top:8px">
+        Read the passage aloud. Because the text is known, accuracy and pace are
+        measured exactly rather than estimated.
+      </div>
+    </div>
+    <div class="card">
+      <h3 id="readTitle">Passage</h3>
+      <p id="readText" style="font-size:17px;line-height:1.75;margin:0"></p>
+      <div class="row" style="margin-top:18px;align-items:center">
+        <button id="readMic" class="mic">🎙️</button>
+        <div>
+          <div id="readStatus" style="font-weight:600">Tap the microphone and read it aloud</div>
+          <div class="muted" id="readHint" style="font-size:12px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card hidden" id="readResult" style="margin-top:16px"></div>
+  </section>
+
+  <!-- HISTORY (everything said, newest first) -->
+  <section id="history" class="hidden">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h3 style="margin:0">Chat history</h3>
+        <input id="histSearch" placeholder="Search what was said" style="min-width:220px"/>
+      </div>
+      <div class="muted" id="histNote" style="font-size:12.5px;margin:8px 0 12px"></div>
+      <div id="histList"></div>
+    </div>
+  </section>
+
   <!-- CONVERSATIONS (analysis across all, then one at a time) -->
   <section id="convos" class="hidden">
     <div id="convOverview"></div>
@@ -353,6 +426,18 @@
   </div>
 </div>
 
+<!-- First-run level picker. current_level defaults to 0, which is also
+     "Beginner", so the server carries a separate level_selected flag — this is
+     what stops the app assuming a level nobody chose. -->
+<div id="levelGate" class="modal-back hidden">
+  <div class="modal" style="text-align:left;max-width:520px">
+    <h3>What is your English level?</h3>
+    <p>Pick where you are today. It only sets your starting point — your level moves
+       with your scores from here.</p>
+    <div id="levelChoices" style="display:flex;flex-direction:column;gap:8px;margin-top:16px"></div>
+  </div>
+</div>
+
 <!-- Sign-in gate. Only ever shown when the server reports auth_required and this
      browser has no valid session; with auth off it never appears. -->
 <div id="authGate" class="modal-back hidden">
@@ -374,6 +459,26 @@
 
 <script>
 const $=(s)=>document.querySelector(s);
+// Canvas cannot inherit CSS variables, so charts have to ask for the current
+// value. Without this the grid lines stayed dark-theme grey and vanished
+// against a light background.
+const cssVar=(n)=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C={grid:()=>cssVar('--line'),label:()=>cssVar('--muted'),dim:()=>cssVar('--dim'),
+         accent:()=>cssVar('--accent'),accent2:()=>cssVar('--accent2')};
+// --- theme ------------------------------------------------------------------
+// Applied before anything else renders. Reading the stored choice after first
+// paint is what causes the white flash people notice on every reload.
+function applyTheme(t){
+  document.documentElement.dataset.theme=t;
+  const b=$('#themeBtn'); if(b)b.textContent=t==='light'?'☀️':'🌙';
+  try{localStorage.setItem('coach.theme',t);}catch{}
+}
+(function initTheme(){
+  let saved=null; try{saved=localStorage.getItem('coach.theme');}catch{}
+  // No stored choice: follow the operating system rather than imposing dark.
+  const prefersLight=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches;
+  applyTheme(saved||(prefersLight?'light':'dark'));
+})();
 // Session token. Same origin as the API, so the httpOnly cookie the server sets
 // would work on its own — the header is sent as well so this page behaves
 // identically when someone points it at a different COACH host.
@@ -398,7 +503,7 @@ const api={
 const DIMS=["pronunciation","grammar","vocabulary","listening","fluency","confidence","coherence","relevance"];
 const LEVELS=["Beginner","Intermediate","Advanced","Professional","Fluent","Native-like"];
 const SKILL_COLORS={pronunciation:'#2dd4bf',grammar:'#818cf8',vocabulary:'#f472b6',listening:'#60a5fa',fluency:'#34d399',confidence:'#fbbf24',coherence:'#a78bfa',relevance:'#fb923c'};
-let currentUser=null, currentUserName='', currentLevel=0, topic='';
+let currentUser=null, currentUserName='', currentLevel=0, topic='', currentStreak=0;
 
 // --- auth ------------------------------------------------------------------
 let authRequired=false, signedInAs=null, minPwLen=8, gateMode='login', isAdmin=false;
@@ -443,6 +548,12 @@ $('#authSubmit').addEventListener('click',async()=>{
     try{msg=JSON.parse(msg).detail||msg;}catch{}
     gateError(signup&&/already has an account/.test(msg)?msg+' Sign in instead.':msg);
   }finally{$('#authSubmit').disabled=false;}
+});
+$('#themeBtn').addEventListener('click',()=>{
+  applyTheme(document.documentElement.dataset.theme==='light'?'dark':'light');
+  // Canvases keep whatever was painted, so they have to be redrawn against the
+  // new palette — otherwise the charts stay in the previous theme's colours.
+  renderAll();
 });
 $('#signOutBtn').addEventListener('click',async()=>{
   try{await api.post('/auth/logout');}catch{}
@@ -497,6 +608,7 @@ async function refreshUsers(){
   sel.value=currentUser;const u=users.find(x=>x.user_id===currentUser);currentLevel=u?u.current_level:0;
   currentUserName=u?u.display_name:'';
   renderAll();
+  maybeAskLevel(u);   // no-op once the learner has chosen
 }
 $('#userSel').addEventListener('change',e=>{currentUser=e.target.value;renderAll();});
 $('#newUserBtn').addEventListener('click',async()=>{const id=prompt('Learner id (slug):');if(!id)return;const name=prompt('Name:',id)||id;
@@ -506,13 +618,178 @@ $('#seedBtn').addEventListener('click',async()=>{if(!currentUser)return alert('S
 // tabs
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-  ['dash','practice','convos','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  ['dash','practice','reading','convos','history','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
   if(b.dataset.tab==='dash')renderDashboard();
   if(b.dataset.tab==='report')renderReport();
   if(b.dataset.tab==='admin')renderAdmin();
   if(b.dataset.tab==='convos')renderConversations();
+  if(b.dataset.tab==='history')renderHistory();
+  if(b.dataset.tab==='reading')initReading();
   if(b.dataset.tab==='monitor')startMonitor();else stopMonitor();
 }));
+
+// --- reading practice -------------------------------------------------------
+// Audio goes over the same /ws/session socket as Practice, with reply=0 so the
+// coach stays quiet: the learner is reading a fixed passage, and a conversational
+// answer would be noise in their history (and an LLM+TTS run this box can skip).
+let readPassage=null, readWs=null, readAc=null, readProc=null, readStream=null, readT0=0, readState='idle';
+function initReading(){
+  if(!$('#readLevel').options.length){
+    $('#readLevel').innerHTML=LEVELS.map((n,i)=>`<option value="${i}">${i} · ${n}</option>`).join('');
+    $('#readLevel').value=String(currentLevel||0);
+  }
+  if(!readPassage)loadPassage();
+}
+async function loadPassage(){
+  const level=+$('#readLevel').value||0;
+  try{
+    readPassage=await api.get(`/reading/passage?level=${level}&seed=${encodeURIComponent(currentUser+':'+Date.now())}`);
+  }catch(e){$('#readText').textContent='Could not load a passage: '+e.message;return;}
+  $('#readTitle').textContent=readPassage.title;
+  $('#readText').textContent=readPassage.text;
+  $('#readHint').textContent=`${readPassage.words} words · level ${readPassage.level}`;
+  $('#readResult').classList.add('hidden');
+}
+$('#readNew').addEventListener('click',loadPassage);
+$('#readLevel').addEventListener('change',loadPassage);
+
+function readSetState(s,msg){readState=s;$('#readStatus').textContent=msg;
+  $('#readMic').textContent=s==='recording'?'⏹':'🎙️';}
+$('#readMic').addEventListener('click',async()=>{
+  if(readState==='recording'){await stopReading();return;}
+  if(!readPassage)await loadPassage();
+  try{await startReading();}catch(e){readSetState('idle','Microphone unavailable: '+e.message);}
+});
+async function startReading(){
+  readAc=new (window.AudioContext||window.webkitAudioContext)();
+  if(readAc.state==='suspended')await readAc.resume();
+  readStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+  const src=readAc.createMediaStreamSource(readStream);
+  readProc=readAc.createScriptProcessor(4096,1,1);
+  readProc.onaudioprocess=e=>{ if(readState!=='recording'||!readWs||readWs.readyState!==1)return;
+    const pcm=to16k(e.inputBuffer.getChannelData(0),readAc.sampleRate); if(pcm.byteLength)readWs.send(pcm); };
+  src.connect(readProc); readProc.connect(readAc.destination);
+  const proto=location.protocol==='https:'?'wss':'ws';
+  const kq=tok.get()?`&token=${encodeURIComponent(tok.get())}`:'';
+  readWs=new WebSocket(`${proto}://${location.host}/ws/session?user_id=${encodeURIComponent(currentUser)}&mode=reading&ptt=1&reply=0${kq}`);
+  readWs.binaryType='arraybuffer';
+  readWs.onmessage=ev=>{
+    if(typeof ev.data!=='string')return;      // reply=0, so no audio is expected
+    const m=JSON.parse(ev.data);
+    if(m.type==='final')scoreReading(m.text||'');
+    if(m.type==='turn_skipped')readSetState('idle','That was too short — tap and read the whole passage.');
+    if(m.type==='error')readSetState('idle','Error: '+(m.detail||''));
+  };
+  readWs.onopen=()=>{readT0=Date.now();readSetState('recording','Reading… tap again when you finish');};
+}
+async function stopReading(){
+  readSetState('scoring','Measuring your reading…');
+  try{readWs&&readWs.readyState===1&&readWs.send(JSON.stringify({type:'end'}));}catch{}
+  try{readProc&&readProc.disconnect();}catch{}
+  try{readStream&&readStream.getTracks().forEach(t=>t.stop());}catch{}
+  try{readAc&&readAc.close();}catch{}
+}
+async function scoreReading(spoken){
+  const seconds=(Date.now()-readT0)/1000;
+  try{readWs&&readWs.send(JSON.stringify({type:'bye'}));}catch{}
+  let r;
+  try{
+    r=await api.post(`/users/${encodeURIComponent(currentUser)}/reading/score`,
+      {reference:readPassage.text,spoken,duration_s:seconds,level:readPassage.level});
+  }catch(e){readSetState('idle','Could not score: '+e.message);return;}
+  readSetState('idle','Tap the microphone and read it aloud');
+  const box=$('#readResult'); box.classList.remove('hidden');
+  box.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3 style="margin:0">Reading result</h3>${scoreChip(r.accuracy)}
+    </div>
+    <p style="margin:10px 0 14px">${esc(r.verdict)}</p>
+    <div class="grid tiles">
+      <div class="card tile"><div class="l">Accuracy</div><div class="v">${r.accuracy!=null?r.accuracy+'%':'—'}</div>
+        <div class="s">${r.matched_words}/${r.reference_words} words</div></div>
+      <div class="card tile"><div class="l">Pace</div><div class="v">${r.wpm!=null?r.wpm:'—'}</div>
+        <div class="s">${esc(r.pace||'words per minute')}</div></div>
+      <div class="card tile"><div class="l">Error rate</div><div class="v">${r.wer!=null?r.wer:'—'}</div>
+        <div class="s">per reference word</div></div>
+      <div class="card tile"><div class="l">Time</div><div class="v">${fmtDur(r.duration_s)}</div>
+        <div class="s">${r.spoken_words} words spoken</div></div>
+    </div>
+    ${r.missed_words.length?`<h4 style="margin:16px 0 6px">Missed</h4>
+      <div class="chips">${r.missed_words.map(w=>`<span class="pill s-low">${esc(w)}</span>`).join('')}</div>`:''}
+    ${r.substitutions.length?`<h4 style="margin:16px 0 6px">Heard differently</h4>
+      ${r.substitutions.map(s=>`<div class="corr"><s>${esc(s.expected)}</s> → <b>${esc(s.heard)}</b></div>`).join('')}`:''}`;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// --- first-run level picker -------------------------------------------------
+const LEVEL_BLURB=['I know a few words and simple phrases',
+  'I can handle everyday conversations slowly','I can discuss familiar topics comfortably',
+  'I can work and present in English','I can argue nuance and follow fast speech',
+  'I speak with near-native ease'];
+function maybeAskLevel(user){
+  if(!user||user.level_selected)return;
+  $('#levelChoices').innerHTML=LEVELS.map((name,i)=>
+    `<button data-level="${i}" style="text-align:left;padding:12px 14px">
+       <b>${i} · ${name}</b><div class="muted" style="font-size:12.5px">${LEVEL_BLURB[i]}</div>
+     </button>`).join('');
+  $('#levelChoices').querySelectorAll('button').forEach(b=>b.addEventListener('click',async()=>{
+    try{
+      const u=await api.post(`/users/${encodeURIComponent(currentUser)}/level`,{current_level:+b.dataset.level});
+      currentLevel=u.current_level;
+      $('#levelGate').classList.add('hidden');
+      renderAll();
+    }catch(e){alert('Could not save your level:\n'+e.message);}
+  }));
+  $('#levelGate').classList.remove('hidden');
+}
+
+// --- streak heatmap (a year of practice, one square per day) ---------------
+function heatClass(n){return n===0?'h0':n===1?'h1':n===2?'h2':n<=4?'h3':'h4';}
+async function renderStreak(){
+  const box=$('#streakBox'); if(!box||!currentUser)return;
+  let a; try{a=await api.get(`/users/${encodeURIComponent(currentUser)}/activity?days=364`);}
+  catch{box.innerHTML='';return;}
+  // Columns are weeks, rows are weekdays — the shape people already read.
+  const cells=a.cells, pad=cells.length?cells[0].weekday:0;
+  const squares=Array(pad).fill('<i class="sq pad"></i>')
+    .concat(cells.map(c=>`<i class="sq ${heatClass(c.count)}" title="${c.date}: ${c.count} session${c.count===1?'':'s'}"></i>`));
+  box.innerHTML=`<div class="row" style="justify-content:space-between;align-items:baseline">
+      <h3 style="margin:0">Practice streak</h3>
+      <div class="muted" style="font-size:12.5px">${a.active_days} active days ·
+        current ${currentStreak}d · longest ${a.longest_streak}d</div></div>
+    <div class="heat">${squares.join('')}</div>
+    <div class="muted" style="font-size:11.5px;margin-top:8px">Less
+      <i class="sq h0"></i><i class="sq h1"></i><i class="sq h2"></i><i class="sq h3"></i><i class="sq h4"></i> More</div>`;
+}
+
+// --- chat history -----------------------------------------------------------
+let histData=null;
+async function renderHistory(){
+  if(!currentUser){$('#histNote').textContent='Select a learner first.';return;}
+  $('#histNote').textContent='Loading…';
+  try{histData=await api.get(`/users/${encodeURIComponent(currentUser)}/history`);}
+  catch(e){$('#histNote').textContent='Could not load: '+e.message;return;}
+  drawHistory();
+}
+function drawHistory(){
+  if(!histData)return;
+  const q=($('#histSearch').value||'').trim().toLowerCase();
+  let shown=0;
+  const html=histData.map(c=>{
+    const msgs=c.messages.filter(m=>!q||(m.transcript||'').toLowerCase().includes(q));
+    if(!msgs.length)return '';
+    shown+=msgs.length;
+    return `<div style="margin-bottom:18px">
+      <div class="muted" style="font-size:12px;margin-bottom:8px">${fmtDate(c.started_at)}</div>
+      ${msgs.map(m=>`<div class="turn ${m.role==='coach'?'coach':'learner'}">
+        <div>${esc(m.transcript||'…')}</div>
+        <div class="turn-meta"><span>${m.role==='coach'?'Coach':'You'}</span></div></div>`).join('')}
+    </div>`;
+  }).join('');
+  $('#histList').innerHTML=html||'<p class="muted">Nothing matches that search.</p>';
+  $('#histNote').textContent=`${shown} message${shown===1?'':'s'}${q?' matching “'+esc(q)+'”':''}.`;
+}
+$('#histSearch').addEventListener('input',drawHistory);
 
 // --- conversations: the analysis across all, then one at a time ------------
 function scoreClass(v){return v==null?'s-none':v>=75?'s-good':v>=60?'s-mid':'s-low';}
@@ -689,7 +966,8 @@ async function renderDashboard(){
     api.get(`/users/${currentUser}/progress`),api.get(`/users/${currentUser}/assessments?limit=200`),
     api.get(`/users/${currentUser}/progress/trend?skill=overall&days=3650`),
     api.get(`/users/${currentUser}/gaps`),api.get(`/users/${currentUser}/plan`)]);}catch(e){return;}
-  currentLevel=ov.current_level;$('#lvlBadge').textContent='Level '+ov.current_level+' · '+LEVELS[ov.current_level];
+  currentLevel=ov.current_level;currentStreak=ov.streak_days;renderStreak();
+  $('#lvlBadge').textContent='Level '+ov.current_level+' · '+LEVELS[ov.current_level];
   $('#practiceLvl').textContent='Level '+ov.current_level+' · '+LEVELS[ov.current_level];renderLevels();
   $('#dashEmpty').classList.toggle('hidden',assess.length>0);
   const eta=ov.estimated_days_to_next_level;
@@ -739,23 +1017,23 @@ function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':
 function fmtDate(iso){try{return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'});}catch{return iso.slice(0,10);}}
 function drawRadar(id,scores){const c=$('#'+id),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
   const cx=W/2,cy=H/2+6,R=Math.min(W,H)/2-50,n=DIMS.length;
-  for(let r=1;r<=4;r++){x.beginPath();for(let i=0;i<=n;i++){const a=-Math.PI/2+i*2*Math.PI/n,rr=R*r/4;const px=cx+rr*Math.cos(a),py=cy+rr*Math.sin(a);i?x.lineTo(px,py):x.moveTo(px,py);}x.strokeStyle='#26375a';x.stroke();}
+  for(let r=1;r<=4;r++){x.beginPath();for(let i=0;i<=n;i++){const a=-Math.PI/2+i*2*Math.PI/n,rr=R*r/4;const px=cx+rr*Math.cos(a),py=cy+rr*Math.sin(a);i?x.lineTo(px,py):x.moveTo(px,py);}x.strokeStyle=C.grid();x.stroke();}
   x.font='11px system-ui';for(let i=0;i<n;i++){const a=-Math.PI/2+i*2*Math.PI/n,px=cx+R*Math.cos(a),py=cy+R*Math.sin(a);
-    x.strokeStyle='#26375a';x.beginPath();x.moveTo(cx,cy);x.lineTo(px,py);x.stroke();
-    x.fillStyle='#93a4c4';x.textAlign=Math.abs(Math.cos(a))<0.3?'center':(Math.cos(a)>0?'left':'right');x.fillText(DIMS[i].slice(0,5),px+8*Math.cos(a),py+8*Math.sin(a)+3);}
+    x.strokeStyle=C.grid();x.beginPath();x.moveTo(cx,cy);x.lineTo(px,py);x.stroke();
+    x.fillStyle=C.label();x.textAlign=Math.abs(Math.cos(a))<0.3?'center':(Math.cos(a)>0?'left':'right');x.fillText(DIMS[i].slice(0,5),px+8*Math.cos(a),py+8*Math.sin(a)+3);}
   x.beginPath();for(let i=0;i<=n;i++){const d=DIMS[i%n],v=(scores[d]??0)/100,a=-Math.PI/2+i*2*Math.PI/n,rr=R*v;const px=cx+rr*Math.cos(a),py=cy+rr*Math.sin(a);i?x.lineTo(px,py):x.moveTo(px,py);}
   x.closePath();const g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,'rgba(45,212,191,.35)');g.addColorStop(1,'rgba(129,140,248,.35)');
-  x.fillStyle=g;x.fill();x.strokeStyle='#2dd4bf';x.lineWidth=2;x.stroke();x.lineWidth=1;}
+  x.fillStyle=g;x.fill();x.strokeStyle=C.accent();x.lineWidth=2;x.stroke();x.lineWidth=1;}
 function drawTrend(id,pts){const c=$('#'+id),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
   const P={l:36,r:14,t:14,b:26},w=W-P.l-P.r,h=H-P.t-P.b;x.font='11px system-ui';x.textAlign='right';
-  for(let g=0;g<=4;g++){const y=P.t+h*g/4;x.strokeStyle='#26375a';x.beginPath();x.moveTo(P.l,y);x.lineTo(P.l+w,y);x.stroke();x.fillStyle='#93a4c4';x.fillText(100-g*25,P.l-6,y+3);}
-  if(!pts||!pts.length){x.textAlign='center';x.fillStyle='#5f7196';x.fillText('no data',W/2,H/2);return;}
+  for(let g=0;g<=4;g++){const y=P.t+h*g/4;x.strokeStyle=C.grid();x.beginPath();x.moveTo(P.l,y);x.lineTo(P.l+w,y);x.stroke();x.fillStyle=C.label();x.fillText(100-g*25,P.l-6,y+3);}
+  if(!pts||!pts.length){x.textAlign='center';x.fillStyle=C.dim();x.fillText('no data',W/2,H/2);return;}
   const xs=i=>P.l+(pts.length===1?w/2:w*i/(pts.length-1)),ys=v=>P.t+h*(1-v/100);
   const g=x.createLinearGradient(0,P.t,0,P.t+h);g.addColorStop(0,'rgba(129,140,248,.35)');g.addColorStop(1,'rgba(129,140,248,0)');
   x.beginPath();pts.forEach((p,i)=>{const px=xs(i),py=ys(p.value);i?x.lineTo(px,py):x.moveTo(px,py);});
   x.lineTo(xs(pts.length-1),P.t+h);x.lineTo(xs(0),P.t+h);x.closePath();x.fillStyle=g;x.fill();
-  x.strokeStyle='#818cf8';x.lineWidth=2.5;x.beginPath();pts.forEach((p,i)=>{const px=xs(i),py=ys(p.value);i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();x.lineWidth=1;
-  x.fillStyle='#2dd4bf';pts.forEach((p,i)=>{x.beginPath();x.arc(xs(i),ys(p.value),3.2,0,7);x.fill();});}
+  x.strokeStyle=C.accent2();x.lineWidth=2.5;x.beginPath();pts.forEach((p,i)=>{const px=xs(i),py=ys(p.value);i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();x.lineWidth=1;
+  x.fillStyle=C.accent();pts.forEach((p,i)=>{x.beginPath();x.arc(xs(i),ys(p.value),3.2,0,7);x.fill();});}
 
 // practice / topics
 function renderChips(list){$('#topicChips').innerHTML=list.map(t=>`<span class="chip" data-t="${esc(t)}">${esc(t)}</span>`).join('');
@@ -944,7 +1222,7 @@ function statusPill(st){const c=st==='loaded'?'on':(st==='not_loaded'||st==='dis
 function gaugeHTML(k,v,sub){const p=v==null?'—':Math.round(v*100)+'%';
   return `<div class="card gauge"><div class="gwrap"><canvas id="g_${k}" width="120" height="120"></canvas><div class="gtxt"><div class="p">${p}</div><div class="u">${sub}</div></div></div><div class="glabel">${k}</div></div>`;}
 function drawGauge(id,v){const c=$('#'+id);if(!c)return;const x=c.getContext('2d'),W=120,H=120,cx=60,cy=60,r=48;x.clearRect(0,0,W,H);
-  x.lineWidth=11;x.strokeStyle='#26375a';x.beginPath();x.arc(cx,cy,r,0,2*Math.PI);x.stroke();
+  x.lineWidth=11;x.strokeStyle=C.grid();x.beginPath();x.arc(cx,cy,r,0,2*Math.PI);x.stroke();
   const val=v==null?0:Math.max(0,Math.min(1,v));const col=val>0.96?'#ef4444':val>0.88?'#fb923c':val>0.7?'#fbbf24':'#2dd4bf';
   x.strokeStyle=col;x.lineCap='round';x.beginPath();x.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+val*2*Math.PI);x.stroke();}
 

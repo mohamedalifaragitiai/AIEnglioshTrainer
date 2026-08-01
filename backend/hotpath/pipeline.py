@@ -46,6 +46,10 @@ class TurnContext:
     user_id: str
     history: list[dict[str, str]] = field(default_factory=list)
     system_prompt: str | None = None  # level/topic-aware coach persona
+    # Reading practice wants the transcript and nothing else: the learner is
+    # reading a fixed passage, so a conversational reply is noise in their
+    # history and a needless LLM+TTS run on a box with one GPU.
+    reply: bool = True
 
 
 class HotPathPipeline:
@@ -87,6 +91,15 @@ class HotPathPipeline:
         timings.stt_ms = (perf_counter() - t) * 1000
         metrics.hotpath_stage_seconds.labels("stt").observe(timings.stt_ms / 1000)
         yield HotEvent(HotEventKind.FINAL, text=transcript, meta={"confidence": confidence})
+
+        if not ctx.reply:
+            # Still persist and publish, so the cold path scores the attempt and
+            # it counts towards the learner's history. TIMINGS is still emitted
+            # because the socket contract is that every 'end' is closed out.
+            await self._finalize(pcm, transcript, confidence, "", ctx)
+            metrics.hotpath_turns_total.labels("degraded" if timings.degraded else "ok").inc()
+            yield HotEvent(HotEventKind.TIMINGS, timings=timings)
+            return
 
         # --- Dialogue -> TTS, streamed sentence-by-sentence ---
         # The reply streams a sentence at a time; each is spoken immediately, so the
@@ -169,9 +182,12 @@ class HotPathPipeline:
                     stt_confidence=confidence,
                 )
                 utterance_id = learner.utterance_id
-                self.utterances.add(
-                    ctx.session_id, ctx.user_id, Role.COACH, transcript=reply
-                )
+                # No coach turn in reading mode: nothing was said back, and a
+                # blank coach utterance would show up as an empty chat bubble.
+                if reply:
+                    self.utterances.add(
+                        ctx.session_id, ctx.user_id, Role.COACH, transcript=reply
+                    )
         except Exception as exc:  # noqa: BLE001
             log.error("utterance_persist_failed", error=str(exc))
 
