@@ -305,7 +305,11 @@ def test_reading_mode_returns_a_transcript_without_a_coach_reply():
         client.post("/users", json={"user_id": uid, "display_name": "Reader"})
         client.app.state.hotpath_stages = HotPathStages(FakeSTT(), FakeDialogue(), FakeTTS())
 
-        with client.websocket_connect(f"/ws/session?user_id={uid}&ptt=1&reply=0") as ws:
+        # mode=reading included deliberately: the first version of this test
+        # omitted it, so a mode the SessionMode enum did not accept passed
+        # here and crashed the socket in the browser.
+        url = f"/ws/session?user_id={uid}&mode=reading&ptt=1&reply=0"
+        with client.websocket_connect(url) as ws:
             ws.receive_json()  # session
             _speak_a_turn(ws)
             kinds = []

@@ -16,7 +16,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from backend.coldpath.scoring import DIMENSIONS
-from backend.domain.models import Assessment, Role
+from backend.domain.models import Assessment, Role, SessionMode
 from backend.persistence.db import Database
 from backend.persistence.repositories import (
     AssessmentRepository,
@@ -243,6 +243,11 @@ class ConversationAnalyzer:
         """One row per conversation: enough to choose which to open."""
         rows = []
         for session in self.sessions.list_for_user(user_id, limit=limit):
+            # Read-aloud sessions belong to the Reading tab: they carry no coach
+            # turn, and counting them here would dilute conversation averages
+            # with a different exercise.
+            if session.mode == SessionMode.READING:
+                continue
             assessments = self.assessments.list_for_session(session.session_id)
             utterances = self.utterances.list_for_session(session.session_id)
             learner = [u for u in utterances if u.role == Role.LEARNER]
@@ -332,6 +337,8 @@ class ConversationAnalyzer:
         """
         out: list[dict] = []
         for session in self.sessions.list_for_user(user_id, limit=200):
+            if session.mode == SessionMode.READING:
+                continue
             turns = self.utterances.list_for_session(session.session_id)
             if not turns:
                 continue

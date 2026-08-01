@@ -430,15 +430,31 @@
     <div class="card">
       <h3 id="readTitle">Passage</h3>
       <p id="readText" style="font-size:17px;line-height:1.75;margin:0"></p>
-      <div class="row" style="margin-top:18px;align-items:center">
+      <div class="row" style="margin-top:18px;align-items:center;gap:14px;flex-wrap:wrap">
         <button id="readMic" class="mic" title="Tap to read aloud" aria-label="Tap to read aloud">🎙️</button>
-        <div>
+        <div style="flex:1;min-width:230px">
           <div id="readStatus" role="status" aria-live="polite" style="font-weight:600">Tap the microphone and read it aloud</div>
           <div class="muted" id="readHint" style="font-size:12px"></div>
-          <div id="readProgWrap" class="hidden" style="margin-top:8px;max-width:320px">
+          <!-- Pace while reading: elapsed against how long this passage takes at
+               a natural rate. It is a guide, not a measurement — the real number
+               is computed from the transcript afterwards. -->
+          <div id="readPaceWrap" class="hidden" style="margin-top:8px;max-width:360px">
+            <div class="progress"><i id="readPace"></i></div>
+            <div class="row" style="justify-content:space-between;margin-top:4px">
+              <span class="muted" id="readTimer" style="font-size:12px;font-variant-numeric:tabular-nums">0:00</span>
+              <span class="muted" id="readTarget" style="font-size:11.5px"></span>
+            </div>
+          </div>
+          <div id="readProgWrap" class="hidden" style="margin-top:8px;max-width:360px">
             <div class="progress"><i id="readProg"></i></div>
             <div class="muted" id="readElapsed" style="font-size:11.5px;margin-top:4px"></div>
           </div>
+        </div>
+        <!-- Nothing is submitted until Send: stopping only releases the
+             microphone, so a bad take can be discarded instead of scored. -->
+        <div class="row hidden" id="readActions" style="gap:8px">
+          <button id="readSend" class="btn-primary">Send for scoring</button>
+          <button id="readRedo">Record again</button>
         </div>
       </div>
     </div>
@@ -775,14 +791,62 @@ async function loadPassage(){
 $('#readNew').addEventListener('click',loadPassage);
 $('#readLevel').addEventListener('change',loadPassage);
 
-function readSetState(s,msg){readState=s;$('#readStatus').textContent=msg;
-  $('#readMic').textContent=s==='recording'?'⏹':'🎙️';}
+// 150 wpm is the middle of what the scorer calls a natural pace (90-170), so
+// the guide and the grade agree rather than pulling in different directions.
+const NATURAL_WPM=150;
+let paceTimer=null, recStartedAt=0;
+function fmtClock(sec){return `${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,'0')}`;}
+function readSetState(st,msg){
+  readState=st;
+  $('#readStatus').textContent=msg;
+  $('#readMic').textContent=st==='recording'?'⏹':'🎙️';
+  // The take is only offered for sending once the microphone has stopped.
+  $('#readActions').classList.toggle('hidden',st!=='recorded');
+  $('#readMic').disabled=(st==='scoring');
+}
+function startPace(){
+  recStartedAt=Date.now();
+  const target=readPassage?Math.max(4,readPassage.words/(NATURAL_WPM/60)):0;
+  $('#readTarget').textContent=target?`natural pace ≈ ${fmtClock(target)} for ${readPassage.words} words`:'';
+  $('#readPaceWrap').classList.remove('hidden');
+  clearInterval(paceTimer);
+  paceTimer=setInterval(()=>{
+    const sec=(Date.now()-recStartedAt)/1000;
+    $('#readTimer').textContent=fmtClock(sec);
+    if(!target)return;
+    const ratio=sec/target, bar=$('#readPace');
+    bar.style.width=Math.min(100,ratio*100)+'%';
+    // Past the natural window this is a nudge, not a failure — some passages
+    // deserve to be read slowly.
+    bar.style.background=ratio<=1.15?'linear-gradient(90deg,var(--accent),var(--accent2))'
+      :ratio<=1.6?'var(--warn)':'var(--bad)';
+    $('#readTimer').style.color=ratio<=1.15?'var(--muted)':ratio<=1.6?'var(--warn)':'var(--bad)';
+  },200);
+}
+function stopPace(){clearInterval(paceTimer);paceTimer=null;}
+
+// --- capture -----------------------------------------------------------------
+// Recording streams to the server as it goes, but nothing is scored until Send:
+// the server buffers the take and only transcribes when it receives 'end'. That
+// is what makes "record, listen to yourself think, then decide" possible.
+let recSeconds=0;
 $('#readMic').addEventListener('click',async()=>{
-  if(readState==='recording'){await stopReading();return;}
+  if(readState==='recording'){stopRecording();return;}
+  if(readState==='scoring')return;
   if(!readPassage)await loadPassage();
-  try{await startReading();}catch(e){readSetState('idle','Microphone unavailable: '+e.message);}
+  try{await startReading();}catch(e){failReading('Microphone unavailable: '+e.message);}
 });
+$('#readSend').addEventListener('click',sendForScoring);
+$('#readRedo').addEventListener('click',async()=>{
+  // Drop the buffered take by closing without 'end'; the server discards it.
+  try{readWs&&readWs.close();}catch{}
+  readWs=null;
+  $('#readPaceWrap').classList.add('hidden');
+  readSetState('idle','Tap the microphone and read it aloud');
+});
+
 async function startReading(){
+  $('#readResult').classList.add('hidden');
   readAc=new (window.AudioContext||window.webkitAudioContext)();
   if(readAc.state==='suspended')await readAc.resume();
   readStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
@@ -791,16 +855,15 @@ async function startReading(){
   readProc.onaudioprocess=e=>{ if(readState!=='recording'||!readWs||readWs.readyState!==1)return;
     const pcm=to16k(e.inputBuffer.getChannelData(0),readAc.sampleRate); if(pcm.byteLength)readWs.send(pcm); };
   src.connect(readProc); readProc.connect(readAc.destination);
+
   const proto=location.protocol==='https:'?'wss':'ws';
   const kq=tok.get()?`&token=${encodeURIComponent(tok.get())}`:'';
   readWs=new WebSocket(`${proto}://${location.host}/ws/session?user_id=${encodeURIComponent(currentUser)}&mode=reading&ptt=1&reply=0${kq}`);
   readWs.binaryType='arraybuffer';
-  // Without onerror/onclose the UI had no way to learn the socket had gone: a
-  // dropped connection or a turn that never completed left "Measuring your
-  // reading…" on screen forever, which is exactly what happened.
+  // Without onerror/onclose a dropped socket left the UI waiting forever.
   readWs.onerror=()=>failReading('The connection dropped before your reading could be measured.');
   readWs.onclose=ev=>{
-    if(readState==='scoring'||readState==='recording'){
+    if(readState==='recording'||readState==='scoring'){
       failReading(ev.code===4401?'Your session has ended — sign in again.'
         :ev.code===4403?'That profile is not yours.'
         :`The connection closed before the transcript came back (code ${ev.code}).`);
@@ -810,16 +873,27 @@ async function startReading(){
     if(typeof ev.data!=='string')return;      // reply=0, so no audio is expected
     const m=JSON.parse(ev.data);
     if(m.type==='final')scoreReading(m.text||'');
-    if(m.type==='turn_skipped'){endReadProgress(false);readSetState('idle','That was too short — tap and read the whole passage.');}
+    if(m.type==='turn_skipped'){endReadProgress(false);readSetState('idle','That was too short — record the whole passage.');}
     if(m.type==='error')failReading('Error: '+(m.detail||''));
   };
-  readWs.onopen=()=>{readT0=Date.now();readSetState('recording','Reading… tap again when you finish');};
+  readWs.onopen=()=>{readT0=Date.now();readSetState('recording','Reading… tap ⏹ when you finish');startPace();};
 }
-// Transcribing a 30-second read on this box takes real time, and the guard can
-// defer it further. Silence for that long is indistinguishable from a hang, so
-// show elapsed time, ease a bar towards 90%, and give up loudly rather than
-// never.
-let readTimer=null, readDeadline=null;
+
+function stopRecording(){
+  stopPace();
+  recSeconds=(Date.now()-recStartedAt)/1000;
+  // Release the microphone but keep the socket: the take is buffered server-side
+  // and is only transcribed when 'end' arrives.
+  try{readProc&&readProc.disconnect();}catch{}
+  try{readStream&&readStream.getTracks().forEach(t=>t.stop());}catch{}
+  try{readAc&&readAc.close();}catch{}
+  readProc=readStream=readAc=null;
+  readSetState('recorded',`Recorded ${fmtClock(recSeconds)} — send it for scoring, or record again`);
+}
+
+// Transcribing takes real time here and the guard can defer it, so the wait gets
+// its own progress rather than silence.
+let readTimer=null;
 const READ_TIMEOUT_MS=90000;
 function startReadProgress(){
   const t0=Date.now();
@@ -827,12 +901,11 @@ function startReadProgress(){
   clearInterval(readTimer);
   readTimer=setInterval(()=>{
     const ms=Date.now()-t0, secs=Math.round(ms/1000);
-    // Asymptotic: fast at first, never reaching 100 until the result lands.
     const pct=Math.min(90,Math.round(90*(1-Math.exp(-ms/12000))));
     $('#readProg').style.width=pct+'%';
     $('#readElapsed').textContent=`Transcribing your recording — ${secs}s elapsed`
       +(secs>25?' (a long passage takes longer, and scoring waits its turn while the machine is busy)':'');
-    if(ms>READ_TIMEOUT_MS)failReading('Timed out waiting for the transcript. Your recording may have been too long, or the machine is under load — try again.');
+    if(ms>READ_TIMEOUT_MS)failReading('Timed out waiting for the transcript. Try recording a shorter passage, or try again.');
   },500);
 }
 function endReadProgress(done){
@@ -841,24 +914,24 @@ function endReadProgress(done){
   setTimeout(()=>$('#readProgWrap').classList.add('hidden'),done?400:0);
 }
 function failReading(msg){
-  if(readState==='idle')return;
+  stopPace();
   endReadProgress(false);
   readSetState('idle',msg);
   try{readWs&&readWs.close();}catch{}
+  readWs=null;
 }
-async function stopReading(){
+function sendForScoring(){
+  if(readState!=='recorded')return;
   readSetState('scoring','Measuring your reading…');
   startReadProgress();
   try{readWs&&readWs.readyState===1&&readWs.send(JSON.stringify({type:'end'}));}
-  catch{failReading('Could not send the recording — the connection had already closed.');return;}
-  // Only the microphone is released here. The socket stays open: the transcript
-  // has not come back yet, and closing it is what would lose the result.
-  try{readProc&&readProc.disconnect();}catch{}
-  try{readStream&&readStream.getTracks().forEach(t=>t.stop());}catch{}
-  try{readAc&&readAc.close();}catch{}
+  catch{failReading('Could not send the recording — the connection had already closed.');}
 }
+
 async function scoreReading(spoken){
-  const seconds=(Date.now()-readT0)/1000;
+  // The take's own length, not the time the socket has been open —
+  // reviewing before sending must not count as slow reading.
+  const seconds=recSeconds||((Date.now()-readT0)/1000);
   try{readWs&&readWs.send(JSON.stringify({type:'bye'}));}catch{}
   let r;
   try{
@@ -866,6 +939,7 @@ async function scoreReading(spoken){
       {reference:readPassage.text,spoken,duration_s:seconds,level:readPassage.level,title:readPassage.title});
   }catch(e){failReading('Could not score: '+e.message);return;}
   endReadProgress(true);
+  $('#readPaceWrap').classList.add('hidden');
   readSetState('idle','Tap the microphone and read it aloud');
   const box=$('#readResult'); box.classList.remove('hidden');
   box.innerHTML=`

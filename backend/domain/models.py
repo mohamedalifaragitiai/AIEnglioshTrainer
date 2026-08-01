@@ -25,6 +25,10 @@ class SessionMode(StrEnum):
     IELTS = "ielts"
     BUSINESS = "business"
     GENERAL = "general"
+    # Read-aloud practice. A distinct mode rather than reusing FREE: these
+    # sessions have learner turns and no coach reply, so the conversation views
+    # exclude them and the Reading tab owns them instead.
+    READING = "reading"
 
 
 class User(BaseModel):

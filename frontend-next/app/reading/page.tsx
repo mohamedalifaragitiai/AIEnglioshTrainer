@@ -12,7 +12,17 @@ import {
 import { StatTile } from "@/components/panels";
 import { useUser } from "../user-context";
 
-type State = "idle" | "recording" | "scoring";
+// "recorded" is the new state that makes Send possible: the take is buffered on
+// the server and nothing is transcribed until the learner decides to send it.
+type State = "idle" | "recording" | "recorded" | "scoring";
+
+// 150 wpm is the middle of what the scorer calls a natural pace (90-170), so the
+// live guide and the grade afterwards agree rather than pulling apart.
+const NATURAL_WPM = 150;
+
+function clock(sec: number) {
+  return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+}
 
 function band(v: number | null) {
   if (v == null) return "text-muted bg-panel2";
@@ -31,6 +41,8 @@ export default function ReadingPage() {
   const [history, setHistory] = useState<ReadingHistory | null>(null);
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [recSecs, setRecSecs] = useState(0);
+  const [paceSecs, setPaceSecs] = useState(0);
 
   const ws = useRef<WebSocket | null>(null);
   const ac = useRef<AudioContext | null>(null);
@@ -40,6 +52,8 @@ export default function ReadingPage() {
   const stateRef = useRef<State>("idle");
   const passageRef = useRef<ReadingPassage | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const paceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordedRef = useRef(0);
 
   // Refs shadow the state because the audio callback and the socket handler are
   // closures created once; reading React state there would see its first value
@@ -92,7 +106,9 @@ export default function ReadingPage() {
   };
 
   const score = async (spoken: string) => {
-    const seconds = (Date.now() - startedAt.current) / 1000;
+    // The take's own length, not the time the socket has been open —
+    // reviewing before sending must not count as slow reading.
+    const seconds = recordedRef.current || (Date.now() - startedAt.current) / 1000;
     try {
       ws.current?.send(JSON.stringify({ type: "bye" }));
     } catch {}
@@ -150,7 +166,12 @@ export default function ReadingPage() {
       ws.current.onopen = () => {
         startedAt.current = Date.now();
         setState("recording");
-        setStatus("Reading… tap again when you finish");
+        setStatus("Reading… tap ⏹ when you finish");
+        if (paceTimer.current) clearInterval(paceTimer.current);
+        paceTimer.current = setInterval(
+          () => setPaceSecs((Date.now() - startedAt.current) / 1000),
+          200,
+        );
       };
       // Without these the UI had no way to learn the socket had gone: a dropped
       // connection or a turn that never completed left "Measuring your reading…"
@@ -207,7 +228,31 @@ export default function ReadingPage() {
     } catch {}
   };
 
-  const stop = () => {
+  /** Releases the microphone only. The socket stays open and the take stays
+   *  buffered server-side, so the learner can discard it or send it. */
+  const stopRecording = () => {
+    if (paceTimer.current) clearInterval(paceTimer.current);
+    paceTimer.current = null;
+    const secs = (Date.now() - startedAt.current) / 1000;
+    recordedRef.current = secs;
+    setRecSecs(secs);
+    teardown();
+    setState("recorded");
+    setStatus(`Recorded ${clock(secs)} — send it for scoring, or record again`);
+  };
+
+  const discard = () => {
+    // Closing without 'end' is what makes the server drop the buffered take.
+    try {
+      ws.current?.close();
+    } catch {}
+    ws.current = null;
+    setState("idle");
+    setStatus("Tap the microphone and read it aloud");
+  };
+
+  const send = () => {
+    if (stateRef.current !== "recorded") return;
     setState("scoring");
     setStatus("Measuring your reading…");
     const t0 = Date.now();
@@ -224,14 +269,16 @@ export default function ReadingPage() {
     }, 500);
     try {
       ws.current?.send(JSON.stringify({ type: "end" }));
-    } catch {}
-    teardown();
+    } catch {
+      fail("Could not send the recording — the connection had already closed.");
+    }
   };
 
   useEffect(
     () => () => {
       teardown();
       if (timer.current) clearInterval(timer.current);
+      if (paceTimer.current) clearInterval(paceTimer.current);
     },
     [],
   );
@@ -275,7 +322,7 @@ export default function ReadingPage() {
         <p className="text-lg leading-relaxed">{passage?.text ?? "Loading…"}</p>
         <div className="flex items-center gap-4 mt-5">
           <button
-            onClick={() => (state === "recording" ? stop() : start())}
+            onClick={() => (state === "recording" ? stopRecording() : start())}
             disabled={state === "scoring" || !passage}
             className={`w-14 h-14 rounded-full grid place-items-center text-xl border-none transition ${
               state === "recording"
@@ -287,6 +334,19 @@ export default function ReadingPage() {
           >
             {state === "recording" ? "⏹" : "🎙️"}
           </button>
+
+          {/* Nothing is submitted until Send: stopping only releases the
+              microphone, so a bad take can be discarded instead of scored. */}
+          {state === "recorded" && (
+            <div className="flex gap-2">
+              <button className="btn btn-primary" onClick={send}>
+                Send for scoring
+              </button>
+              <button className="btn" onClick={discard}>
+                Record again
+              </button>
+            </div>
+          )}
           <div>
             <div className="font-semibold" role="status" aria-live="polite">
               {status}
@@ -294,6 +354,42 @@ export default function ReadingPage() {
             {passage && state !== "scoring" && (
               <div className="text-muted text-xs">
                 {passage.words} words · level {passage.level}
+              </div>
+            )}
+            {state === "recording" && passage && (
+              <div className="mt-2 max-w-sm">
+                <div className="h-1.5 rounded-full bg-panel2 overflow-hidden">
+                  {(() => {
+                    const target = Math.max(4, passage.words / (NATURAL_WPM / 60));
+                    const ratio = paceSecs / target;
+                    // Past the natural window this is a nudge, not a failure —
+                    // some passages deserve to be read slowly.
+                    const colour =
+                      ratio <= 1.15
+                        ? "bg-gradient-to-r from-accent to-accent2"
+                        : ratio <= 1.6
+                          ? "bg-warn"
+                          : "bg-bad";
+                    return (
+                      <div
+                        className={`h-full rounded-full ${colour}`}
+                        style={{ width: `${Math.min(100, ratio * 100)}%` }}
+                      />
+                    );
+                  })()}
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-muted text-xs tabular-nums">{clock(paceSecs)}</span>
+                  <span className="text-muted text-[11px]">
+                    natural pace ≈ {clock(passage.words / (NATURAL_WPM / 60))} for{" "}
+                    {passage.words} words
+                  </span>
+                </div>
+              </div>
+            )}
+            {state === "recorded" && (
+              <div className="text-muted text-xs mt-1 tabular-nums">
+                Recorded {clock(recSecs)} · nothing has been sent yet
               </div>
             )}
             {state === "scoring" && (
