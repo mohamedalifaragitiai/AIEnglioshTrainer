@@ -113,6 +113,14 @@ class UserRepository:
             cur = con.execute("DELETE FROM users WHERE user_id=?", (user_id,))
             return cur.rowcount > 0
 
+    def set_level_selected(self, user_id: str, chosen: bool) -> bool:
+        with self.db.connection() as con:
+            cur = con.execute(
+                "UPDATE users SET level_selected=? WHERE user_id=?",
+                (1 if chosen else 0, user_id),
+            )
+            return cur.rowcount > 0
+
     def set_admin(self, user_id: str, is_admin: bool) -> bool:
         with self.db.connection() as con:
             cur = con.execute(

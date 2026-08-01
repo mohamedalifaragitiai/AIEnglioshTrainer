@@ -13,7 +13,7 @@ the model server is down or the guard has deferred scoring.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from backend.coldpath.scoring import DIMENSIONS
 from backend.domain.models import Assessment, Role
@@ -262,6 +262,96 @@ class ConversationAnalyzer:
                 }
             )
         return rows
+
+    def activity(self, user_id: str, *, days: int = 365) -> dict:
+        """One cell per calendar day, GitHub-contributions style.
+
+        Every day in the window is present, including empty ones — a heatmap
+        with gaps omitted would silently compress time and draw a streak that
+        never happened.
+        """
+        today = datetime.now(UTC).date()
+        start = today - timedelta(days=days - 1)
+        counts: dict[str, int] = {}
+        seconds: dict[str, float] = {}
+
+        for session in self.sessions.list_for_user(user_id, limit=10_000):
+            try:
+                day = datetime.fromisoformat(session.started_at).date()
+            except ValueError:
+                continue
+            if day < start or day > today:
+                continue
+            key = day.isoformat()
+            counts[key] = counts.get(key, 0) + 1
+            dur = _duration_s(session.started_at, session.ended_at)
+            if dur:
+                seconds[key] = seconds.get(key, 0.0) + dur
+
+        cells = []
+        for offset in range(days):
+            day = start + timedelta(days=offset)
+            key = day.isoformat()
+            cells.append(
+                {
+                    "date": key,
+                    "weekday": day.weekday(),  # 0 = Monday, for column layout
+                    "count": counts.get(key, 0),
+                    "seconds": round(seconds.get(key, 0.0), 1),
+                }
+            )
+
+        active = [c for c in cells if c["count"]]
+        # Longest run anywhere in the window, as distinct from the *current*
+        # streak the profile carries — a personal best you can lose is a
+        # different number from the one you are holding.
+        longest = current = 0
+        for cell in cells:
+            current = current + 1 if cell["count"] else 0
+            longest = max(longest, current)
+
+        return {
+            "user_id": user_id,
+            "from": start.isoformat(),
+            "to": today.isoformat(),
+            "days": days,
+            "cells": cells,
+            "active_days": len(active),
+            "total_sessions": sum(c["count"] for c in cells),
+            "total_seconds": round(sum(c["seconds"] for c in cells), 1),
+            "busiest_day": max(active, key=lambda c: c["count"], default=None),
+            "longest_streak": longest,
+        }
+
+    def history(self, user_id: str, *, limit: int = 500) -> list[dict]:
+        """Every turn the learner and coach exchanged, newest conversation first.
+
+        The Conversations view answers "how did that session go"; this answers
+        "what have we actually talked about", which is a different question and
+        wants a flat, scannable list.
+        """
+        out: list[dict] = []
+        for session in self.sessions.list_for_user(user_id, limit=200):
+            turns = self.utterances.list_for_session(session.session_id)
+            if not turns:
+                continue
+            out.append(
+                {
+                    "session_id": session.session_id,
+                    "started_at": session.started_at,
+                    "messages": [
+                        {
+                            "role": t.role,
+                            "transcript": t.transcript,
+                            "created_at": t.created_at,
+                        }
+                        for t in turns
+                    ],
+                }
+            )
+            if sum(len(c["messages"]) for c in out) >= limit:
+                break
+        return out
 
     def analyze_all(self, user_id: str, limit: int = 200) -> dict:
         """The across-conversations view: totals, averages, trend, what to fix.

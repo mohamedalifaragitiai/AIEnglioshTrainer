@@ -135,11 +135,25 @@ _SCHEMA_003 = """
 ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;
 """
 
+# `current_level` defaults to 0, which is indistinguishable from a learner who
+# deliberately chose Beginner. This flag is what separates "not asked yet" from
+# "answered 0" — without it the app either nags people who already chose, or
+# silently assumes a level nobody picked.
+#
+# Existing rows are backfilled to 1: they have been practising for weeks and
+# their level came from real assessments, so asking them now would be absurd.
+_SCHEMA_004 = """
+ALTER TABLE users ADD COLUMN level_selected INTEGER NOT NULL DEFAULT 0;
+UPDATE users SET level_selected = 1
+ WHERE user_id IN (SELECT DISTINCT user_id FROM assessments);
+"""
+
 # (version, description, sql) — append new tuples; never rewrite an applied one.
 MIGRATIONS: list[tuple[int, str, str]] = [
     (1, "initial schema", _SCHEMA_001),
     (2, "auth: credentials + login sessions", _SCHEMA_002),
     (3, "auth: admin flag on users", _SCHEMA_003),
+    (4, "onboarding: has the learner chosen their level", _SCHEMA_004),
 ]
 
 

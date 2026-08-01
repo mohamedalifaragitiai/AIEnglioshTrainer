@@ -47,6 +47,10 @@ class UpdateUserRequest(BaseModel):
     settings_json: str | None = None
 
 
+class ChooseLevelRequest(BaseModel):
+    current_level: int = Field(..., ge=0, le=5)
+
+
 @router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
 def create_user(body: CreateUserRequest, repos: Repositories = Depends(get_repos)) -> User:
     user_id = normalize_user_id(body.user_id)
@@ -100,6 +104,25 @@ def update_user(
         current_level=body.current_level,
         settings_json=body.settings_json,
     )
+
+
+@router.post("/{user_id}/level", response_model=User)
+def choose_level(
+    user_id: str, body: ChooseLevelRequest, repos: Repositories = Depends(get_repos)
+) -> User:
+    """Record the learner's own starting level and stop asking.
+
+    Separate from PATCH so the act of *choosing* is explicit: a PATCH that
+    happens to set current_level is the scoring pipeline advancing someone's
+    level, which is not the same event and must not silence the prompt.
+    """
+    if not repos.users.exists(user_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"user {user_id!r} not found")
+    repos.users.set_level_selected(user_id, True)
+    user = repos.users.update(user_id, current_level=body.current_level)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"user {user_id!r} not found")
+    return user
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

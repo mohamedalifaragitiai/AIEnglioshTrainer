@@ -92,3 +92,25 @@ def test_session_for_missing_user_404():
 def test_progress_missing_user_404():
     with TestClient(app) as client:
         assert client.get("/users/ghost/progress").status_code == 404
+
+
+def test_level_is_chosen_by_the_learner_not_defaulted():
+    """current_level 0 means "Beginner"; it must not also mean "never asked"."""
+    with TestClient(app) as client:
+        uid = _uid()
+        created = client.post("/users", json={"user_id": uid, "display_name": "New"}).json()
+        assert created["level_selected"] is False, "a fresh profile has not chosen yet"
+
+        chosen = client.post(f"/users/{uid}/level", json={"current_level": 0}).json()
+        assert chosen["current_level"] == 0
+        assert chosen["level_selected"] is True, "choosing Beginner is still choosing"
+
+
+def test_scoring_advancing_a_level_does_not_count_as_choosing():
+    """A PATCH from the scoring pipeline must not silence the prompt."""
+    with TestClient(app) as client:
+        uid = _uid()
+        client.post("/users", json={"user_id": uid, "display_name": "New"})
+        patched = client.patch(f"/users/{uid}", json={"current_level": 3}).json()
+        assert patched["current_level"] == 3
+        assert patched["level_selected"] is False

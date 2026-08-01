@@ -50,6 +50,23 @@ def conversation_report(user_id: str, session_id: str, request: Request) -> dict
     return report
 
 
+@router.get("/activity")
+def activity(user_id: str, request: Request, days: int = 365) -> dict:
+    """Daily practice counts for a contribution-style heatmap."""
+    svc = get_insights(request)
+    _require_user(svc, user_id)
+    days = max(7, min(days, 730))
+    return ConversationAnalyzer(request.app.state.db).activity(user_id, days=days)
+
+
+@router.get("/history")
+def history(user_id: str, request: Request, limit: int = 500) -> list[dict]:
+    """Every message exchanged, grouped by conversation, newest first."""
+    svc = get_insights(request)
+    _require_user(svc, user_id)
+    return ConversationAnalyzer(request.app.state.db).history(user_id, limit=limit)
+
+
 @router.get("/analysis")
 def full_analysis(user_id: str, request: Request, limit: int = 200) -> dict:
     """Across every conversation: totals, averages, measured trend, what to fix."""

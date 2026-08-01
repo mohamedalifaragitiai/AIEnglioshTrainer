@@ -39,6 +39,9 @@ class User(BaseModel):
     # A coach/administrator: sees every learner's profile instead of only their
     # own. Defaulted so rows written before migration 003 still map.
     is_admin: bool = False
+    # False until the learner picks a starting level themselves. current_level
+    # alone cannot express this: 0 is both "Beginner" and "never asked".
+    level_selected: bool = False
 
 
 class Session(BaseModel):
