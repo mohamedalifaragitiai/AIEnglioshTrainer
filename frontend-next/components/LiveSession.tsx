@@ -258,7 +258,9 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           } ${state === "busy" ? "opacity-50" : ""}`}
           title="Tap to speak"
         >
-          {state === "recording" ? "⏹" : state === "busy" ? "●" : "🎙"}
+          {/* U+FE0F on the mic: without it many platforms render the
+              monochrome text glyph instead of the colour emoji. */}
+          {state === "recording" ? "⏹" : state === "busy" ? "●" : "🎙️"}
         </button>
       </div>
     </div>

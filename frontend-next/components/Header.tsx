@@ -129,9 +129,13 @@ export function Header() {
             + New
           </button>
         )}
-        <button className="btn" onClick={seed}>
-          Load demo data
-        </button>
+        {/* Demo data writes fabricated history into a learner's real progress —
+            a setup affordance, never something they should be able to press. */}
+        {operator && (
+          <button className="btn" onClick={seed}>
+            Load demo data
+          </button>
+        )}
         {signedInAs && (
           <button className="btn" onClick={signOut} title={`Signed in as ${signedInAs}`}>
             Sign out

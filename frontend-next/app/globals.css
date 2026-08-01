@@ -7,23 +7,39 @@
 }
 
 body {
-  background: #0f172a;
-  color: #e2e8f0;
+  /* Matches the served UI: a deep base with a single warm-ish pool of light,
+     so the teal and indigo accents carry the contrast rather than the grey. */
+  background:
+    radial-gradient(1200px 600px at 80% -10%, #16233f 0%, transparent 60%),
+    #070c17;
+  color: #eef2fd;
+  min-height: 100vh;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 @layer components {
   .card {
-    @apply bg-panel border border-line rounded-xl p-4;
+    @apply relative overflow-hidden bg-gradient-to-b from-panel to-[#0c1322]
+      border border-line rounded-xl p-4 shadow-lg shadow-black/30;
+  }
+  /* A hairline of light along the top edge lifts the card off the background
+     without spending another border colour on it. */
+  .card::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   }
   .card-title {
     @apply text-xs uppercase tracking-wider text-muted font-semibold mb-3;
   }
   .btn {
-    @apply bg-panel2 border border-line rounded-lg px-3 py-2 text-sm cursor-pointer hover:border-accent transition-colors;
+    @apply bg-panel2 border border-line rounded-lg px-3 py-2 text-sm cursor-pointer
+      hover:border-accent hover:bg-[#22304f] transition;
   }
   .btn-primary {
-    @apply bg-accent text-[#06201c] border-accent font-semibold hover:bg-teal-300;
+    @apply bg-gradient-to-br from-accent to-indigo-500 text-[#04201c] border-none
+      font-semibold shadow-md shadow-accent/20 hover:brightness-105;
   }
   .pill {
     @apply text-xs px-2.5 py-1 rounded-full bg-panel2 text-muted;

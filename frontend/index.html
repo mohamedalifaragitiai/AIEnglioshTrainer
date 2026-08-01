@@ -8,8 +8,9 @@
   :root {
     /* Deeper, bluer base so the teal/indigo accents carry more of the contrast
        and long reading surfaces (transcripts, tables) stay comfortable. */
-    --bg:#080d1a; --bg2:#0d1426; --panel:#141d31; --panel2:#1b2740; --line:#2a3a5c;
-    --text:#eaf0fd; --muted:#9db0d0; --dim:#68799e;
+    --bg:#070c17; --bg2:#0c1322; --panel:#131c2e; --panel2:#1a2540; --panel3:#22304f;
+    --line:#2b3b5e;
+    --text:#eef2fd; --muted:#a3b5d4; --dim:#6b7ca1;
     --accent:#2dd4bf; --accent2:#a5b4fc; --indigo:#6366f1;
     --good:#34d399; --warn:#fbbf24; --bad:#f87171;
     /* Tinted fills for chips and callouts — a border alone reads as an error
@@ -42,24 +43,36 @@
   select,button,input{font:inherit;color:var(--text);background:var(--panel2);
     border:1px solid var(--line);border-radius:10px;padding:8px 12px;outline:none;transition:.15s}
   select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(45,212,191,.15)}
-  button{cursor:pointer} button:hover{border-color:var(--accent)}
-  .btn-primary{background:linear-gradient(135deg,var(--accent),#14b8a6);color:#062a25;border:none;font-weight:700}
-  .btn-primary:hover{filter:brightness(1.08)}
+  button{cursor:pointer}
+  button:hover{border-color:var(--accent);background:var(--panel3);transform:translateY(-1px)}
+  button:active{transform:translateY(0)}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--indigo));color:#04201c;border:none;
+    font-weight:700;box-shadow:0 4px 14px rgba(45,212,191,.22)}
+  .btn-primary:hover{filter:brightness(1.06);box-shadow:0 6px 20px rgba(45,212,191,.30)}
   .btn-danger{border-color:var(--bad);color:var(--bad)}
   .pill{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--panel2);color:var(--muted);
     display:inline-flex;align-items:center;gap:6px}
   .pill .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
   .pill.on{background:#052e26;color:var(--good)} .pill.off{background:#2e1414;color:var(--bad)}
-  nav{display:flex;gap:4px;padding:10px 22px 0;flex-wrap:wrap}
-  nav button{background:transparent;border:none;border-radius:10px;padding:9px 16px;color:var(--muted);font-weight:600}
-  nav button.active{color:var(--text);background:var(--panel)}
-  nav button:hover{color:var(--text)}
+  nav{display:flex;gap:4px;padding:12px 22px 0;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  nav button{background:transparent;border:none;border-bottom:2px solid transparent;border-radius:10px 10px 0 0;
+    padding:10px 16px;color:var(--muted);font-weight:600;transform:none}
+  /* The active tab is marked by an accent underline rather than a filled block:
+     the fill competed with the cards below it for the eye. */
+  nav button.active{color:var(--text);background:var(--panel);border-bottom-color:var(--accent)}
+  nav button:hover{color:var(--text);background:var(--panel2);transform:none}
   main{max-width:1180px;margin:0 auto;padding:20px 22px 60px}
   .grid{display:grid;gap:16px}
   .tiles{grid-template-columns:repeat(4,1fr)} .c2{grid-template-columns:1fr 1fr} .c3{grid-template-columns:repeat(3,1fr)}
   @media(max-width:820px){.tiles{grid-template-columns:repeat(2,1fr)}.c2,.c3{grid-template-columns:1fr}}
-  .card{background:linear-gradient(180deg,var(--panel),#121b30);border:1px solid var(--line);
+  .card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
     border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+  /* A hairline of light along the top edge lifts the card off the background
+     without another border colour — cheap depth, no extra weight. */
+  .card{position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 0 auto;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.10),transparent)}
+  .tile{transition:.18s} .tile:hover{border-color:var(--accent);transform:translateY(-2px)}
   .card h3{margin:0 0 14px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
   .tile .l{color:var(--muted);font-size:12.5px} .tile .v{font-size:30px;font-weight:800;margin-top:2px;
     background:linear-gradient(135deg,#fff,#b9c6e6);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -170,7 +183,9 @@
   <label class="muted" for="userSel">Learner</label>
   <select id="userSel"></select>
   <button id="newUserBtn">+ New</button>
-  <button id="seedBtn">Load demo</button>
+  <!-- Demo data is a setup affordance, not something a learner should ever
+       press: it writes fabricated history into their real progress. -->
+  <button id="seedBtn" class="hidden">Load demo</button>
   <button id="signOutBtn" class="hidden">Sign out</button>
 </header>
 <nav>
@@ -227,14 +242,14 @@
       <div class="chips" id="topicChips"></div>
     </div>
     <div class="card chat-card">
-      <div class="conv" id="conv"><div class="conv-empty" id="convEmpty">Tap the microphone below and start the conversation 🎙</div></div>
+      <div class="conv" id="conv"><div class="conv-empty" id="convEmpty">Tap the microphone below and start the conversation 🎙️</div></div>
       <div class="composer">
         <div class="composer-status">
           <div id="wsStatus" style="font-weight:600">Tap the mic to speak</div>
           <div class="muted" id="turnTimings" style="font-size:11.5px"></div>
         </div>
         <button id="endBtn" class="btn-danger" style="display:none">End</button>
-        <button id="micBtn" class="mic" title="Tap to speak">🎙</button>
+        <button id="micBtn" class="mic" title="Tap to speak">🎙️</button>
       </div>
     </div>
   </section>
@@ -313,8 +328,8 @@
 </main>
 
 <footer>
-  © <span id="year">2026</span> <b>Abu Ali</b> · AI English Coach — fully offline, self-hosted.
-  <span id="footVer" class="muted"></span>
+  © <span id="year">2026</span> <b>Abu Ali</b> · AI English Coach
+  <span id="footMeta" class="hidden">— fully offline, self-hosted.<span id="footVer"></span></span>
 </footer>
 
 <!-- Shown after End: the cold path scores the session, then hands over to the report. -->
@@ -455,6 +470,10 @@ async function boot(){
   $('#monitorTab').classList.toggle('hidden',!operator);
   $('#modelsPill').classList.toggle('hidden',!operator);
   $('#verPill').classList.toggle('hidden',!operator);
+  $('#seedBtn').classList.toggle('hidden',!operator);
+  // The learner keeps the credit line; "fully offline, self-hosted v0.2.0"
+  // is deployment trivia that means nothing to someone practising English.
+  $('#footMeta').classList.toggle('hidden',!operator);
 
   // Which build is answering. Open endpoint, so it renders even signed out.
   $('#year').textContent=new Date().getFullYear();
@@ -758,7 +777,7 @@ function appendCoach(p){if(!currentCoach)currentCoach=addMsg('coach','');const b
 let recStart=0,recTimer=null;
 function fmtT(ms){const s=Math.floor(ms/1000);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
 function setState(s){sttate=s;const b=$('#micBtn');b.classList.toggle('rec',s==='recording');b.disabled=(s==='busy');
-  b.style.opacity=s==='busy'?.55:1;b.textContent=s==='recording'?'⏹':(s==='busy'?'●':'🎙');
+  b.style.opacity=s==='busy'?.55:1;b.textContent=s==='recording'?'⏹':(s==='busy'?'●':'🎙️');
   if(recTimer){clearInterval(recTimer);recTimer=null;}
   if(s==='recording'){recStart=Date.now();const upd=()=>$('#wsStatus').innerHTML=`<span class="rec-t">● Recording ${fmtT(Date.now()-recStart)}</span> — tap to send`;upd();recTimer=setInterval(upd,250);}
   else if(s==='busy')$('#wsStatus').innerHTML=`Coach is responding<span class="dots"><i></i><i></i><i></i></span>`;
@@ -866,7 +885,7 @@ async function pollResults(){
   renderDashboard();
 }
 function clearConversation(){
-  $('#conv').innerHTML='<div class="conv-empty" id="convEmpty">Tap the microphone below and start the conversation 🎙</div>';
+  $('#conv').innerHTML='<div class="conv-empty" id="convEmpty">Tap the microphone below and start the conversation 🎙️</div>';
   currentCoach=null;$('#turnTimings').textContent='';
 }
 $('#rmClose').addEventListener('click',()=>$('#resultsModal').classList.add('hidden'));
