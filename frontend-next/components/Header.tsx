@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { api } from "@/lib/api";
 import { useUser } from "@/app/user-context";
 
@@ -65,7 +66,7 @@ export function Header() {
     <Link
       href={href}
       className={`px-3 py-1.5 border-b-2 ${
-        pathname === href ? "text-white border-accent" : "text-muted border-transparent"
+        pathname === href ? "text-fg border-accent" : "text-muted border-transparent"
       }`}
     >
       {label}
@@ -77,10 +78,12 @@ export function Header() {
     return (
       <header className="border-b border-line bg-panel">
         <div className="px-6 py-3">
-          <h1 className="text-lg font-semibold">
-            AI English <span className="text-accent">Coach</span>
-            {version && <span className="pill bg-panel2 ml-3">v{version}</span>}
-          </h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-semibold">
+              AI English <span className="text-accent">Coach</span>
+            </h1>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
     );
@@ -136,6 +139,7 @@ export function Header() {
             Load demo data
           </button>
         )}
+        <ThemeToggle />
         {signedInAs && (
           <button className="btn" onClick={signOut} title={`Signed in as ${signedInAs}`}>
             Sign out
@@ -145,7 +149,9 @@ export function Header() {
       <nav className="flex gap-1 px-6">
         {tab("/", "Dashboard")}
         {tab("/practice", "Practice")}
+        {tab("/reading", "Reading")}
         {tab("/conversations", "Conversations")}
+        {tab("/history", "History")}
         {tab("/report", "Report")}
         {/* Monitor is machine state — VRAM, the degradation ladder, model
             status. That belongs to whoever runs the box, not to someone

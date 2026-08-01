@@ -1,4 +1,5 @@
 import type {
+  Activity,
   AdminOverview,
   Assessment,
   AuthSession,
@@ -7,10 +8,13 @@ import type {
   ConversationRow,
   Feedback,
   FullAnalysis,
+  HistoryConversation,
   GapItem,
   ModelInfo,
   Plan,
   ProgressOverview,
+  ReadingPassage,
+  ReadingResult,
   SkillPoint,
   Stats,
   User,
@@ -81,6 +85,27 @@ export const api = {
       `/users/${encodeURIComponent(id)}/conversations/${encodeURIComponent(sessionId)}`,
     ),
   analysis: (id: string) => req<FullAnalysis>(`/users/${encodeURIComponent(id)}/analysis`),
+  activity: (id: string, days = 364) =>
+    req<Activity>(`/users/${encodeURIComponent(id)}/activity?days=${days}`),
+  history: (id: string) =>
+    req<HistoryConversation[]>(`/users/${encodeURIComponent(id)}/history`),
+  chooseLevel: (id: string, level: number) =>
+    req<User>(`/users/${encodeURIComponent(id)}/level`, {
+      method: "POST",
+      body: JSON.stringify({ current_level: level }),
+    }),
+  readingPassage: (level: number, seed: string) =>
+    req<ReadingPassage>(
+      `/reading/passage?level=${level}&seed=${encodeURIComponent(seed)}`,
+    ),
+  scoreReading: (
+    id: string,
+    body: { reference: string; spoken: string; duration_s: number; level: number },
+  ) =>
+    req<ReadingResult>(`/users/${encodeURIComponent(id)}/reading/score`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   authStatus: () => req<AuthStatus>("/auth/status"),
   signup: (user_id: string, display_name: string, password: string) =>
     req<AuthSession>("/auth/signup", {

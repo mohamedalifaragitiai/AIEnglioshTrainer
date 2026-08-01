@@ -12,6 +12,7 @@ import {
 } from "@/lib/types";
 import { useUser } from "./user-context";
 import { SkillRadar } from "@/components/SkillRadar";
+import { StreakHeatmap } from "@/components/StreakHeatmap";
 import { OverallTrend } from "@/components/OverallTrend";
 import { LevelPicker, SkillBars } from "@/components/widgets";
 import {
@@ -86,6 +87,10 @@ export default function Dashboard() {
           sub={ov.next_level != null ? `reach level ${ov.next_level}` : "top level"}
         />
       </div>
+
+      {currentUser && (
+        <StreakHeatmap userId={currentUser} currentStreak={ov.streak_days} />
+      )}
 
       <div className="card">
         <div className="card-title">Your level — pick where you want to practice</div>

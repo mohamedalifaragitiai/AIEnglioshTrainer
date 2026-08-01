@@ -2,17 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Colours live here as space-separated RGB triplets rather than in the Tailwind
+   config, because a theme switch has to change values at runtime and a config
+   hex is baked in at build time. The triplet form is what lets Tailwind's
+   opacity modifiers (bg-accent/10) keep working through a variable. */
 :root {
   color-scheme: dark;
+  --c-bg: 7 12 23;
+  --c-panel: 19 28 46;
+  --c-panel2: 26 37 64;
+  --c-panel3: 34 48 79;
+  --c-line: 43 59 94;
+  --c-text: 238 242 253;
+  --c-muted: 163 181 212;
+  --c-dim: 107 124 161;
+  --c-accent: 45 212 191;
+  --c-accent2: 165 180 252;
+  --c-good: 52 211 153;
+  --c-warn: 251 191 36;
+  --c-bad: 248 113 113;
+  --page: radial-gradient(1200px 600px at 80% -10%, #16233f 0%, transparent 60%);
+  --hairline: rgba(255, 255, 255, 0.1);
+}
+
+/* The same roles at values that survive a bright screen: the dark theme's teal
+   reads thin on white, so the accents darken rather than merely inverting. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --c-bg: 244 247 252;
+  --c-panel: 255 255 255;
+  --c-panel2: 238 242 249;
+  --c-panel3: 226 233 245;
+  --c-line: 212 221 237;
+  --c-text: 16 26 46;
+  --c-muted: 74 90 120;
+  --c-dim: 114 134 165;
+  --c-accent: 13 148 136;
+  --c-accent2: 79 70 229;
+  --c-good: 5 150 105;
+  --c-warn: 180 83 9;
+  --c-bad: 220 38 38;
+  --page: radial-gradient(1200px 600px at 80% -10%, #e6edf9 0%, transparent 60%);
+  --hairline: rgba(16, 26, 46, 0.06);
 }
 
 body {
-  /* Matches the served UI: a deep base with a single warm-ish pool of light,
-     so the teal and indigo accents carry the contrast rather than the grey. */
   background:
-    radial-gradient(1200px 600px at 80% -10%, #16233f 0%, transparent 60%),
-    #070c17;
-  color: #eef2fd;
+    var(--page),
+    rgb(var(--c-bg));
+  color: rgb(var(--c-text));
   min-height: 100vh;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -20,26 +58,25 @@ body {
 
 @layer components {
   .card {
-    @apply relative overflow-hidden bg-gradient-to-b from-panel to-[#0c1322]
-      border border-line rounded-xl p-4 shadow-lg shadow-black/30;
+    @apply relative overflow-hidden bg-panel border border-line rounded-xl p-4 shadow-lg shadow-black/20;
   }
   /* A hairline of light along the top edge lifts the card off the background
      without spending another border colour on it. */
   .card::before {
     content: "";
     @apply absolute inset-x-0 top-0 h-px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, var(--hairline), transparent);
   }
   .card-title {
     @apply text-xs uppercase tracking-wider text-muted font-semibold mb-3;
   }
   .btn {
     @apply bg-panel2 border border-line rounded-lg px-3 py-2 text-sm cursor-pointer
-      hover:border-accent hover:bg-[#22304f] transition;
+      hover:border-accent hover:bg-panel3 transition;
   }
   .btn-primary {
-    @apply bg-gradient-to-br from-accent to-indigo-500 text-[#04201c] border-none
-      font-semibold shadow-md shadow-accent/20 hover:brightness-105;
+    @apply bg-gradient-to-br from-accent to-accent2 text-white border-none font-semibold
+      shadow-md hover:brightness-105;
   }
   .pill {
     @apply text-xs px-2.5 py-1 rounded-full bg-panel2 text-muted;

@@ -16,6 +16,9 @@ export interface User {
   created_at: string;
   current_level: number;
   streak_days: number;
+  is_admin?: boolean;
+  /** False until the learner picks a starting level themselves. */
+  level_selected?: boolean;
 }
 
 export interface AuthStatus {
@@ -24,6 +27,53 @@ export interface AuthStatus {
   user_id: string | null;
   min_password_length: number;
   is_admin: boolean;
+}
+
+export interface ActivityCell {
+  date: string;
+  weekday: number;
+  count: number;
+  seconds: number;
+}
+
+export interface Activity {
+  user_id: string;
+  from: string;
+  to: string;
+  days: number;
+  cells: ActivityCell[];
+  active_days: number;
+  total_sessions: number;
+  total_seconds: number;
+  longest_streak: number;
+}
+
+export interface HistoryConversation {
+  session_id: string;
+  started_at: string;
+  messages: { role: string; transcript: string | null; created_at: string }[];
+}
+
+export interface ReadingPassage {
+  level: number;
+  title: string;
+  text: string;
+  words: number;
+}
+
+export interface ReadingResult {
+  reference_words: number;
+  spoken_words: number;
+  matched_words: number;
+  accuracy: number | null;
+  wer: number | null;
+  wpm: number | null;
+  pace: string | null;
+  duration_s: number | null;
+  missed_words: string[];
+  extra_words: string[];
+  substitutions: { expected: string; heard: string }[];
+  verdict: string;
 }
 
 export interface Recommendation {
