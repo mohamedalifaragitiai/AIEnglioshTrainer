@@ -23,7 +23,7 @@ export default function Practice() {
   return (
     <div className="space-y-4">
       {!modelsLoaded && (
-        <div className="rounded-lg border border-yellow-700 bg-yellow-950/40 text-yellow-300 px-4 py-2.5 text-sm">
+        <div className="rounded-lg border border-warn/40 bg-warn/10 text-warn px-4 py-2.5 text-sm">
           Live speaking needs the STT/LLM/TTS models running (<code>COACH_LOAD_MODELS=true</code> + a
           vLLM server). Without them the mic still streams and the server replies with an actionable
           error.

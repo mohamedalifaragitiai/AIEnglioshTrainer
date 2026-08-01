@@ -103,7 +103,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         )}
 
         {error && (
-          <div className="pill bg-red-950 text-red-300 whitespace-pre-wrap">{error}</div>
+          <div className="pill bg-bad/10 text-bad whitespace-pre-wrap">{error}</div>
         )}
 
         <button className="btn mt-2" disabled={busy} type="submit">

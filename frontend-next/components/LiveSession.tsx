@@ -212,7 +212,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
             key={i}
             className={`px-3.5 py-2.5 rounded-2xl max-w-[80%] whitespace-pre-wrap ${
               m.who === "user"
-                ? "self-end bg-blue-900/30 border border-blue-600/40"
+                ? "self-end bg-accent2/10 border border-line"
                 : "self-start bg-panel2 border border-line"
             }`}
           >
@@ -227,7 +227,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
         <div className="flex-1 min-w-0">
           <div className="font-semibold">
             {state === "recording" ? (
-              <span className="text-red-400 font-bold">● Recording {fmt(recMs)} — tap to send</span>
+              <span className="text-bad font-bold">● Recording {fmt(recMs)} — tap to send</span>
             ) : state === "busy" ? (
               <span>
                 Coach is responding
@@ -244,7 +244,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           {timings && <div className="text-muted text-[11.5px]">{timings}</div>}
         </div>
         {connected && (
-          <button className="btn border-red-500 text-red-400" onClick={endSession}>
+          <button className="btn border-bad text-bad" onClick={endSession}>
             End
           </button>
         )}

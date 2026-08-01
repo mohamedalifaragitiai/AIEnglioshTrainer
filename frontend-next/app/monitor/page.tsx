@@ -81,10 +81,10 @@ export default function Monitor() {
                     <span
                       className={`pill ${
                         m.status === "loaded"
-                          ? "bg-emerald-900 text-emerald-300"
+                          ? "bg-good/15 text-good"
                           : m.status === "not_loaded" || m.status === "disabled"
                             ? ""
-                            : "bg-red-950 text-red-300"
+                            : "bg-bad/15 text-bad"
                       }`}
                     >
                       {m.status}

@@ -57,7 +57,7 @@ export default function Dashboard() {
 
   if (!currentUser)
     return <p className="text-muted">Create or select a learner to see the dashboard.</p>;
-  if (err) return <p className="text-red-400">Could not load: {err}</p>;
+  if (err) return <p className="text-bad">Could not load: {err}</p>;
   if (!ov) return <p className="text-muted">Loading…</p>;
 
   const eta = ov.estimated_days_to_next_level;
@@ -68,10 +68,17 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       {ov.assessments_count === 0 && (
-        <div className="rounded-lg border border-yellow-700 bg-yellow-950/40 text-yellow-300 px-4 py-2.5 text-sm">
+        <div className="rounded-lg border border-warn/40 bg-warn/10 text-warn px-4 py-2.5 text-sm">
           No assessments yet — click <b>Load demo data</b> above, or use <b>Practice</b>.
         </div>
       )}
+
+      {/* Level first: it sets the difficulty of everything below it, so it
+          belongs above the numbers rather than buried between charts. */}
+      <div className="card">
+        <div className="card-title">Your level — pick where you want to practice</div>
+        <LevelPicker current={currentLevel} onSet={setLevel} />
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatTile label="Level" value={String(ov.current_level)} sub={LEVEL_NAMES[ov.current_level]} />
@@ -86,15 +93,6 @@ export default function Dashboard() {
           value={eta != null ? `${eta}d` : "—"}
           sub={ov.next_level != null ? `reach level ${ov.next_level}` : "top level"}
         />
-      </div>
-
-      {currentUser && (
-        <StreakHeatmap userId={currentUser} currentStreak={ov.streak_days} />
-      )}
-
-      <div className="card">
-        <div className="card-title">Your level — pick where you want to practice</div>
-        <LevelPicker current={currentLevel} onSet={setLevel} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -131,6 +129,9 @@ export default function Dashboard() {
         </div>
         <AssessmentsTable rows={assess} />
       </div>
+
+      {/* Last: a year of squares is a look-back, not something you act on. */}
+      {currentUser && <StreakHeatmap userId={currentUser} currentStreak={ov.streak_days} />}
     </div>
   );
 }

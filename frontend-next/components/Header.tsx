@@ -95,18 +95,20 @@ export function Header() {
         <h1 className="text-lg font-semibold">
           AI English <span className="text-accent">Coach</span>
         </h1>
-        {operator && version && <span className="pill bg-panel2 text-muted">v{version}</span>}
+        {isAdmin && version && <span className="pill bg-panel2 text-muted">v{version}</span>}
         <span className="pill bg-panel2 text-accent2">
           Level {currentLevel} · {LEVEL_NAMES[currentLevel]}
         </span>
-        {operator && (
+        {/* Strictly admin: model status is never a learner's business,
+            even on a single-user install. */}
+        {isAdmin && (
           <span
             className={`pill ${
               modelsLoaded === null
                 ? ""
                 : modelsLoaded
-                  ? "bg-emerald-900 text-emerald-300"
-                  : "bg-red-950 text-red-300"
+                  ? "bg-good/15 text-good"
+                  : "bg-bad/15 text-bad"
             }`}
           >
             models: {modelsLoaded === null ? "?" : modelsLoaded ? "loaded" : "off"}

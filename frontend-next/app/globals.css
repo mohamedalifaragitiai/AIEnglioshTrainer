@@ -8,48 +8,49 @@
    opacity modifiers (bg-accent/10) keep working through a variable. */
 :root {
   color-scheme: dark;
-  --c-bg: 7 12 23;
-  --c-panel: 19 28 46;
-  --c-panel2: 26 37 64;
-  --c-panel3: 34 48 79;
-  --c-line: 43 59 94;
-  --c-text: 238 242 253;
-  --c-muted: 163 181 212;
-  --c-dim: 107 124 161;
+  /* Neutral surfaces, one confident accent. The previous palette tinted every
+     surface the same blue as the accent, so nothing separated from anything —
+     the muddiness was saturation competing, not brightness. */
+  --c-bg: 10 12 17;
+  --c-panel: 20 24 33;
+  --c-panel2: 27 32 43;
+  --c-panel3: 36 43 56;
+  --c-line: 43 50 63;
+  --c-text: 243 245 249;
+  --c-muted: 152 162 179;
+  --c-dim: 107 116 132;
   --c-accent: 45 212 191;
-  --c-accent2: 165 180 252;
+  --c-accent2: 129 140 248;
   --c-good: 52 211 153;
   --c-warn: 251 191 36;
   --c-bad: 248 113 113;
-  --page: radial-gradient(1200px 600px at 80% -10%, #16233f 0%, transparent 60%);
-  --hairline: rgba(255, 255, 255, 0.1);
+  --hairline: rgba(255, 255, 255, 0.07);
 }
 
 /* The same roles at values that survive a bright screen: the dark theme's teal
    reads thin on white, so the accents darken rather than merely inverting. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --c-bg: 244 247 252;
+  /* White surfaces and a near-black text stack: on a bright screen the win is
+     contrast and crisp hairlines, not tinting everything faintly blue. */
+  --c-bg: 246 247 249;
   --c-panel: 255 255 255;
-  --c-panel2: 238 242 249;
-  --c-panel3: 226 233 245;
-  --c-line: 212 221 237;
-  --c-text: 16 26 46;
-  --c-muted: 74 90 120;
-  --c-dim: 114 134 165;
-  --c-accent: 13 148 136;
+  --c-panel2: 242 244 247;
+  --c-panel3: 232 235 240;
+  --c-line: 224 228 234;
+  --c-text: 17 24 39;
+  --c-muted: 75 85 99;
+  --c-dim: 122 132 148;
+  --c-accent: 15 157 143;
   --c-accent2: 79 70 229;
   --c-good: 5 150 105;
   --c-warn: 180 83 9;
   --c-bad: 220 38 38;
-  --page: radial-gradient(1200px 600px at 80% -10%, #e6edf9 0%, transparent 60%);
-  --hairline: rgba(16, 26, 46, 0.06);
+  --hairline: rgba(17, 24, 39, 0.05);
 }
 
 body {
-  background:
-    var(--page),
-    rgb(var(--c-bg));
+  background: rgb(var(--c-bg));
   color: rgb(var(--c-text));
   min-height: 100vh;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -58,7 +59,7 @@ body {
 
 @layer components {
   .card {
-    @apply relative overflow-hidden bg-panel border border-line rounded-xl p-4 shadow-lg shadow-black/20;
+    @apply relative overflow-hidden bg-panel border border-line rounded-xl p-4 shadow-sm;
   }
   /* A hairline of light along the top edge lifts the card off the background
      without spending another border colour on it. */

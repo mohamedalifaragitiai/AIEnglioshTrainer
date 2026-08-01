@@ -14,9 +14,9 @@ import { useUser } from "../user-context";
 /** 75/60 bands, so a number's meaning is legible before it is read. */
 function band(v: number | null | undefined) {
   if (v == null) return "text-muted bg-panel2";
-  if (v >= 75) return "text-emerald-300 bg-emerald-900/30";
-  if (v >= 60) return "text-amber-300 bg-amber-900/30";
-  return "text-red-300 bg-red-950/40";
+  if (v >= 75) return "text-good bg-good/10";
+  if (v >= 60) return "text-warn bg-warn/10";
+  return "text-bad bg-bad/10";
 }
 
 function fmtDur(s: number | null) {
@@ -196,7 +196,7 @@ export default function ConversationsPage() {
           </div>
 
           {open.pending_scoring && (
-            <p className="mt-3 text-amber-300 text-sm">
+            <p className="mt-3 text-warn text-sm">
               Some turns are still being scored — assessment work is deferred while the machine
               is busy. Re-open this in a minute.
             </p>
@@ -226,10 +226,10 @@ export default function ConversationsPage() {
                 {open.corrections.map((c, i) => (
                   <div
                     key={i}
-                    className="rounded-lg border-l-4 border-red-400 bg-red-950/30 px-3 py-2 text-sm"
+                    className="rounded-lg border-l-4 border-bad bg-bad/10 px-3 py-2 text-sm"
                   >
                     <s className="text-muted">{c.text}</s> →{" "}
-                    <b className="text-emerald-300">{c.correction}</b>
+                    <b className="text-good">{c.correction}</b>
                     {c.type && <span className="text-muted"> · {c.type}</span>}
                   </div>
                 ))}
@@ -244,7 +244,7 @@ export default function ConversationsPage() {
                 key={t.utterance_id}
                 className={`rounded-xl px-4 py-3 max-w-[82%] ${
                   t.role === "coach"
-                    ? "bg-indigo-500/10 border border-indigo-400/30"
+                    ? "bg-accent2/10 border border-line"
                     : "bg-panel2 border border-line ml-auto"
                 }`}
               >
@@ -257,10 +257,10 @@ export default function ConversationsPage() {
                 {t.corrections.map((c, i) => (
                   <div
                     key={i}
-                    className="mt-2 rounded-lg border-l-4 border-red-400 bg-red-950/30 px-3 py-1.5 text-sm"
+                    className="mt-2 rounded-lg border-l-4 border-bad bg-bad/10 px-3 py-1.5 text-sm"
                   >
                     <s className="text-muted">{c.text}</s> →{" "}
-                    <b className="text-emerald-300">{c.correction}</b>
+                    <b className="text-good">{c.correction}</b>
                   </div>
                 ))}
               </div>

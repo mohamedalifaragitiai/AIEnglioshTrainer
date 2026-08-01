@@ -56,7 +56,7 @@ export function PlanPanel({ plan }: { plan: Plan | null }) {
             <div className="font-semibold capitalize">
               {f.skill} <span className="text-muted font-normal">({Math.round(f.score)})</span>
             </div>
-            <div className="text-sm text-slate-300">{f.activities[0]}</div>
+            <div className="text-sm text-fg">{f.activities[0]}</div>
           </div>
         ))}
       </div>

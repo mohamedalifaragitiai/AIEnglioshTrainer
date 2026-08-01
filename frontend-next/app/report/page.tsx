@@ -62,7 +62,7 @@ export default function Report() {
         <div className="card">
           <div className="card-title">Strengths &amp; focus</div>
           <div className="mb-3">
-            <span className="pill bg-emerald-900 text-emerald-300">Strengths</span>
+            <span className="pill bg-good/15 text-good">Strengths</span>
             <div className="mt-2 flex gap-2 flex-wrap">
               {fb.strengths.length ? (
                 fb.strengths.map((s) => (
@@ -76,7 +76,7 @@ export default function Report() {
             </div>
           </div>
           <div>
-            <span className="pill bg-red-950 text-red-300">Focus on</span>
+            <span className="pill bg-bad/10 text-bad">Focus on</span>
             <div className="mt-2 flex gap-2 flex-wrap">
               {fb.weaknesses.length ? (
                 fb.weaknesses.map((s) => (
@@ -101,9 +101,9 @@ export default function Report() {
           {fb.corrections.length ? (
             fb.corrections.slice(0, 6).map((c, i) => (
               <div key={i} className="text-sm my-2">
-                <span className="text-red-400">✗ {c.text}</span>{" "}
+                <span className="text-bad">✗ {c.text}</span>{" "}
                 <span className="text-muted">→</span>{" "}
-                <span className="text-emerald-400">✓ {c.correction}</span>
+                <span className="text-good">✓ {c.correction}</span>
               </div>
             ))
           ) : (
