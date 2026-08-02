@@ -177,6 +177,12 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                     del pending[:frame_bytes]
                     utt = segmenter.push(frame)
                     if utt:
+                        # Re-read the voice each turn: a learner who changes it
+                        # mid-session should hear the change on the next reply,
+                        # not have to start a new session to be listened to.
+                        fresh = users.get(user_id)
+                        if fresh is not None:
+                            ctx.voice = fresh.voice
                         # Log the size that arrived. When a turn produces nothing
                         # the first question is whether any audio reached the
                         # server at all, and without this the answer was
@@ -223,6 +229,12 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
                     else:
                         utt = segmenter.flush()
                     if utt:
+                        # Re-read the voice each turn: a learner who changes it
+                        # mid-session should hear the change on the next reply,
+                        # not have to start a new session to be listened to.
+                        fresh = users.get(user_id)
+                        if fresh is not None:
+                            ctx.voice = fresh.voice
                         # Log the size that arrived. When a turn produces nothing
                         # the first question is whether any audio reached the
                         # server at all, and without this the answer was

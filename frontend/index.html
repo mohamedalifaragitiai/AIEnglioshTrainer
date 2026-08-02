@@ -256,6 +256,11 @@
   .progress i{display:block;height:100%;width:0;border-radius:999px;
     background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s ease}
   mark{background:var(--accent-bg);color:var(--accent);border-radius:4px;padding:0 2px}
+  /* Sticky, because the panel scrolls: a Save button you have to hunt for is
+     one people miss, and then the setting looks broken rather than unsaved. */
+  #setSaveBar{position:sticky;bottom:-2px;z-index:2;margin:20px -34px -8px;padding:14px 34px 10px;
+    background:linear-gradient(180deg,transparent,var(--panel) 22%);border-top:1px solid var(--line)}
+  @media (max-width:860px){#setSaveBar{margin-left:-24px;margin-right:-24px;padding-inline:24px}}
   footer{padding:26px var(--gutter) 34px;text-align:center;color:var(--dim);font-size:12.5px}
   footer a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line)}
   /* End-of-session results modal */
@@ -444,7 +449,7 @@
       <div class="row" style="margin-top:18px;align-items:center;gap:14px;flex-wrap:wrap">
         <button id="readMic" class="mic" title="Tap to read aloud" aria-label="Tap to read aloud">🎙️</button>
         <div style="flex:1;min-width:230px">
-          <div id="readStatus" role="status" aria-live="polite" style="font-weight:600">Tap the microphone and read it aloud</div>
+          <div id="readStatus" role="status" aria-live="polite" style="font-weight:600">Hold the mic and read aloud, release to send — or tap for hands-free</div>
           <div class="muted" id="readHint" style="font-size:12px"></div>
           <!-- Pace while reading: elapsed against how long this passage takes at
                a natural rate. It is a guide, not a measurement — the real number
@@ -568,7 +573,6 @@
         <option value="female">Woman</option>
         <option value="male">Man</option>
       </select>
-      <button id="setSaveProfile" class="btn-primary" style="align-self:flex-start">Save profile</button>
     </div>
 
     <h4 style="margin:22px 0 8px">Password</h4>
@@ -583,6 +587,12 @@
     <p class="muted" style="margin:0 0 8px;font-size:13px">
       Signs you out on every device, including this one.</p>
     <button id="setLogoutAll">Sign out everywhere</button>
+
+    <div id="setSaveBar">
+      <button id="setSaveProfile" class="btn-primary" style="width:100%">Save changes</button>
+      <div class="muted" style="font-size:11.5px;text-align:center;margin-top:6px">
+        Saves your profile, level and coach voice.</div>
+    </div>
 
     <h4 style="margin:22px 0 8px;color:var(--bad)">Delete account</h4>
     <p class="muted" style="margin:0 0 8px;font-size:13px">
@@ -862,11 +872,42 @@ function stopPace(){clearInterval(paceTimer);paceTimer=null;}
 // the server buffers the take and only transcribes when it receives 'end'. That
 // is what makes "record, listen to yourself think, then decide" possible.
 let recSeconds=0;
-$('#readMic').addEventListener('click',async()=>{
-  if(readState==='recording'){stopRecording();return;}
-  if(readState==='scoring')return;
+// Same gesture as Practice: hold to read, release to send. A short tap starts
+// hands-free instead, which a long passage needs — and a keyboard cannot hold.
+const READ_TAP_MS=350;
+let readPressStart=0, readHandsFree=false;
+async function readDown(e){
+  if(readState==='scoring'||readState==='recorded')return;
+  if(e&&e.preventDefault)e.preventDefault();
+  if(readState==='recording'){
+    if(readHandsFree){readHandsFree=false;stopRecording();}
+    return;
+  }
+  readPressStart=Date.now(); readHandsFree=false;
   if(!readPassage)await loadPassage();
-  try{await startReading();}catch(e){failReading('Microphone unavailable: '+e.message);}
+  try{await startReading();}catch(err){failReading('Microphone unavailable: '+err.message);}
+}
+function readUp(){
+  if(readState!=='recording'||readHandsFree)return;
+  if(Date.now()-readPressStart<READ_TAP_MS){
+    readHandsFree=true;
+    $('#readStatus').textContent='Reading… tap ⏹ when you finish';
+    return;
+  }
+  stopRecording();
+  sendForScoring();          // released after a real hold: send it
+}
+$('#readMic').addEventListener('pointerdown',readDown);
+// On the window: a finger that slides off the button still has to end the take.
+window.addEventListener('pointerup',()=>{ if(!readHandsFree)readUp(); });
+window.addEventListener('pointercancel',()=>{ if(!readHandsFree&&readState==='recording')stopRecording(); });
+$('#readMic').addEventListener('click',async(e)=>{
+  if(e.detail!==0)return;    // keyboard activation only; pointer handled above
+  readHandsFree=true;
+  if(readState==='recording'){readHandsFree=false;stopRecording();return;}
+  if(readState==='scoring'||readState==='recorded')return;
+  if(!readPassage)await loadPassage();
+  try{await startReading();}catch(err){failReading('Microphone unavailable: '+err.message);}
 });
 $('#readSend').addEventListener('click',sendForScoring);
 $('#readRedo').addEventListener('click',async()=>{
@@ -874,7 +915,7 @@ $('#readRedo').addEventListener('click',async()=>{
   try{readWs&&readWs.close();}catch{}
   readWs=null;
   $('#readPaceWrap').classList.add('hidden');
-  readSetState('idle','Tap the microphone and read it aloud');
+  readSetState('idle','Hold the mic and read aloud, release to send — or tap for hands-free');
 });
 
 async function startReading(){
@@ -908,7 +949,7 @@ async function startReading(){
     if(m.type==='turn_skipped'){endReadProgress(false);readSetState('idle','That was too short — record the whole passage.');}
     if(m.type==='error')failReading('Error: '+(m.detail||''));
   };
-  readWs.onopen=()=>{readT0=Date.now();readSetState('recording','Reading… tap ⏹ when you finish');startPace();};
+  readWs.onopen=()=>{readT0=Date.now();readSetState('recording','Reading… release to send');startPace();};
 }
 
 function stopRecording(){
@@ -972,7 +1013,7 @@ async function scoreReading(spoken){
   }catch(e){failReading('Could not score: '+e.message);return;}
   endReadProgress(true);
   $('#readPaceWrap').classList.add('hidden');
-  readSetState('idle','Tap the microphone and read it aloud');
+  readSetState('idle','Hold the mic and read aloud, release to send — or tap for hands-free');
   const box=$('#readResult'); box.classList.remove('hidden');
   box.innerHTML=`
     <div class="row" style="justify-content:space-between;align-items:center">

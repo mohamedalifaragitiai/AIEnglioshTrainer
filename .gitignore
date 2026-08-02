@@ -19,6 +19,11 @@ __pycache__/
 Screenshot*.png
 screenshot*.png
 Screen Shot*.png
+# Any image dropped at the top level: those are pastes, not assets. Named
+# differently every time, so match the location rather than chase the names.
+/*.png
+/*.jpg
+/*.jpeg
 
 # OS / editor
 .DS_Store

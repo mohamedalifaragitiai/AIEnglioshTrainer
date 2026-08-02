@@ -36,7 +36,7 @@ export default function ReadingPage() {
   const [level, setLevel] = useState(currentLevel);
   const [passage, setPassage] = useState<ReadingPassage | null>(null);
   const [state, setState] = useState<State>("idle");
-  const [status, setStatus] = useState("Tap the microphone and read it aloud");
+  const [status, setStatus] = useState("Hold the mic and read aloud, release to send — or tap for hands-free");
   const [result, setResult] = useState<ReadingResult | null>(null);
   const [history, setHistory] = useState<ReadingHistory | null>(null);
   const [progress, setProgress] = useState(0);
@@ -52,6 +52,11 @@ export default function ReadingPage() {
   const stateRef = useRef<State>("idle");
   const passageRef = useRef<ReadingPassage | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Same gesture as Practice: hold to read, release to send. A short tap starts
+  // hands-free instead, which a long passage needs — and a keyboard cannot hold.
+  const TAP_MS = 350;
+  const pressStart = useRef(0);
+  const handsFree = useRef(false);
   const paceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordedRef = useRef(0);
 
@@ -124,7 +129,7 @@ export default function ReadingPage() {
           title: p.title,
         }),
       );
-      setStatus("Tap the microphone and read it aloud");
+      setStatus("Hold the mic and read aloud, release to send — or tap for hands-free");
       if (timer.current) clearInterval(timer.current);
       timer.current = null;
       setProgress(100);
@@ -166,7 +171,7 @@ export default function ReadingPage() {
       ws.current.onopen = () => {
         startedAt.current = Date.now();
         setState("recording");
-        setStatus("Reading… tap ⏹ when you finish");
+        setStatus("Reading… release to send");
         if (paceTimer.current) clearInterval(paceTimer.current);
         paceTimer.current = setInterval(
           () => setPaceSecs((Date.now() - startedAt.current) / 1000),
@@ -230,6 +235,44 @@ export default function ReadingPage() {
 
   /** Releases the microphone only. The socket stays open and the take stays
    *  buffered server-side, so the learner can discard it or send it. */
+  const micDown = async (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (stateRef.current === "scoring" || stateRef.current === "recorded") return;
+    if (stateRef.current === "recording") {
+      if (handsFree.current) {
+        handsFree.current = false;   // second tap in hands-free: stop, offer Send
+        stopRecording();
+      }
+      return;
+    }
+    pressStart.current = Date.now();
+    handsFree.current = false;
+    await start();
+  };
+
+  const micUp = () => {
+    if (stateRef.current !== "recording" || handsFree.current) return;
+    if (Date.now() - pressStart.current < TAP_MS) {
+      handsFree.current = true;      // a tap: keep reading until they tap again
+      setStatus("Reading… tap ⏹ when you finish");
+      return;
+    }
+    stopRecording();
+    send();                          // released after a real hold: send it
+  };
+
+  // On the window: a finger that slides off the button still has to end the take.
+  useEffect(() => {
+    const up = () => micUp();
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const stopRecording = () => {
     if (paceTimer.current) clearInterval(paceTimer.current);
     paceTimer.current = null;
@@ -248,7 +291,7 @@ export default function ReadingPage() {
     } catch {}
     ws.current = null;
     setState("idle");
-    setStatus("Tap the microphone and read it aloud");
+    setStatus("Hold the mic and read aloud, release to send — or tap for hands-free");
   };
 
   const send = () => {
@@ -322,7 +365,14 @@ export default function ReadingPage() {
         <p className="text-lg leading-relaxed">{passage?.text ?? "Loading…"}</p>
         <div className="flex items-center gap-4 mt-5">
           <button
-            onClick={() => (state === "recording" ? stopRecording() : start())}
+            onPointerDown={micDown}
+            onClick={(e) => {
+              // Keyboard activation only; pointer presses are handled above.
+              if (e.detail !== 0) return;
+              handsFree.current = true;
+              if (state === "recording") stopRecording();
+              else void start();
+            }}
             disabled={state === "scoring" || !passage}
             className={`w-14 h-14 rounded-full grid place-items-center text-xl border-none transition ${
               state === "recording"

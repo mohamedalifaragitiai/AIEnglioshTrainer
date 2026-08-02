@@ -232,9 +232,20 @@ export default function SettingsPage() {
             </option>
           ))}
         </select>
-        <button className="btn btn-primary" disabled={busy} onClick={saveProfile}>
-          Save profile
-        </button>
+        {/* Sticky: the panel scrolls, and a Save you have to hunt for is one
+            people miss — after which the setting looks broken, not unsaved. */}
+        <div className="sticky bottom-0 -mx-4 mt-2 px-4 pt-3 pb-1 bg-panel border-t border-line">
+          <button
+            className="btn btn-primary w-full"
+            disabled={busy}
+            onClick={saveProfile}
+          >
+            Save changes
+          </button>
+          <p className="text-muted text-[11px] text-center mt-1.5">
+            Saves your profile, level and coach voice.
+          </p>
+        </div>
       </div>
 
       {signedInAs && (
