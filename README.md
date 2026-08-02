@@ -132,6 +132,32 @@ cd frontend-next && npm install && npm run dev   # → http://localhost:3000
 Both front-ends are first-class and can run side by side — the served page needs no
 Node at all, the Next.js app is the richer dashboard.
 
+### Watching what learners actually do
+
+The app logs structured JSON, which is right for machines and unreadable in a
+terminal — one sign-in is 200 characters of braces, and the metrics scrape every
+few seconds buries it. Pipe the log through the feed instead:
+
+```bash
+tail -f logs/app.log | ./.venv/Scripts/python.exe scripts/activity_feed.py
+```
+
+```
+19:57:12  abu_ali          signed in
+20:03:44  test             sent a turn        audio_seconds=10.4
+20:03:51  test             assessment ready
+20:06:02  test             finished a reading
+```
+
+One line per human action — sign-ins and failures, turns, discarded takes,
+assessments landing, readings, report downloads, account changes — with the
+scrapes, health probes and per-second sampler warnings filtered out. Tests pin
+both directions, because a feed that quietly drops a real event is worse than no
+feed: you would trust it and be wrong.
+
+On the reference box `run.sh` starts the whole stack and then streams this until
+Ctrl-C, which also stops everything it started.
+
 ## Prove the 96% ceiling (before any model is loaded)
 
 ```bash
