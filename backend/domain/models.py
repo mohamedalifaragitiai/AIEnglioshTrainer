@@ -178,5 +178,10 @@ class ProgressOverview(BaseModel):
     latest_overall: float | None = None
     latest_scores: dict[str, float | None] = Field(default_factory=dict)
     assessments_count: int = 0
+    # The level the latest score implies, which is not always current_level:
+    # a learner picks a starting level themselves, and the cold path writes the
+    # earned one. When they disagree the UI has to say so rather than show
+    # "Level 3" beside "reach level 2".
+    scored_level: int | None = None
     next_level: int | None = None
     estimated_days_to_next_level: float | None = None

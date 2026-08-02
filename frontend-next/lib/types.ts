@@ -221,6 +221,8 @@ export interface ProgressOverview {
   latest_overall: number | null;
   latest_scores: Partial<Record<Dimension, number | null>>;
   assessments_count: number;
+  /** Level implied by the latest score; may differ from the chosen one. */
+  scored_level: number | null;
   next_level: number | null;
   estimated_days_to_next_level: number | null;
 }

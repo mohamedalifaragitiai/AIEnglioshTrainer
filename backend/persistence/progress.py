@@ -13,6 +13,7 @@ from backend.coldpath.scoring import (
     DIMENSIONS,
     SCORING_MODEL_VERSION,
     get_scoring_model,
+    level_for_overall,
 )
 from backend.domain.models import ProgressOverview, SkillPoint
 from backend.persistence.repositories import (
@@ -80,10 +81,18 @@ class ProgressService:
 
     # --- time to next level ------------------------------------------------
 
-    def _next_level_target(self, overall: float, version: str) -> tuple[int, float] | None:
-        """(next_level, overall needed to reach it) or None if already at max."""
+    def _next_level_target(
+        self, overall: float, version: str, *, floor_level: int = 0
+    ) -> tuple[int, float] | None:
+        """(next_level, overall needed to reach it) or None if already at max.
+
+        ``floor_level`` keeps the answer from pointing backwards. A learner who
+        set their level to 3 and is scoring at 1 was being told to "reach level
+        2" beside a tile reading "Level 3" — a target below where the dashboard
+        says they already are is worse than no target.
+        """
         model = get_scoring_model(version)
-        lvl = model.level(overall)
+        lvl = max(model.level(overall), floor_level)
         if lvl >= model.level_thresholds[-1][1]:
             return None
         for upper, level in model.level_thresholds:
@@ -92,7 +101,12 @@ class ProgressService:
         return None
 
     def time_to_next_level(
-        self, user_id: str, *, version: str = SCORING_MODEL_VERSION, min_points: int = 3
+        self,
+        user_id: str,
+        *,
+        version: str = SCORING_MODEL_VERSION,
+        min_points: int = 3,
+        floor_level: int = 0,
     ) -> tuple[int | None, float | None]:
         """Estimate (next_level, days_to_reach) from the recent overall slope.
 
@@ -108,7 +122,7 @@ class ProgressService:
             return None, None
 
         latest_overall = float(rows[-1].overall)
-        target = self._next_level_target(latest_overall, version)
+        target = self._next_level_target(latest_overall, version, floor_level=floor_level)
         if target is None:
             return None, None
         next_level, needed = target
@@ -134,7 +148,12 @@ class ProgressService:
         if user is None:
             return None
         latest = self.assessments.latest_for_user(user_id)
-        next_level, eta = self.time_to_next_level(user_id)
+        # The next target is measured from wherever the learner is *shown* to
+        # be, so the headline level and the goal below it cannot disagree.
+        next_level, eta = self.time_to_next_level(user_id, floor_level=user.current_level)
+        scored_level = (
+            level_for_overall(latest.overall) if latest and latest.overall is not None else None
+        )
         return ProgressOverview(
             user_id=user.user_id,
             display_name=user.display_name,
@@ -143,6 +162,7 @@ class ProgressService:
             latest_overall=(latest.overall if latest else None),
             latest_scores=(latest.dimensions() if latest else {}),
             assessments_count=self.assessments.count_for_user(user_id),
+            scored_level=scored_level,
             next_level=next_level,
             estimated_days_to_next_level=eta,
         )

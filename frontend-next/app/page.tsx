@@ -94,7 +94,17 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatTile label="Level" value={String(ov.current_level)} sub={LEVEL_NAMES[ov.current_level]} />
+        <StatTile
+          label="Level"
+          value={String(ov.current_level)}
+          /* When the chosen level and the scored level disagree, say which is
+             which rather than contradicting it two tiles later. */
+          sub={
+            ov.scored_level != null && ov.scored_level !== ov.current_level
+              ? `you chose this · scores say ${ov.scored_level}`
+              : LEVEL_NAMES[ov.current_level]
+          }
+        />
         <StatTile label="Streak" value={`${ov.streak_days}d`} sub="keep it up" />
         <StatTile
           label="Overall"

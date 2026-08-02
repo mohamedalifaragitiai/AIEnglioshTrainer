@@ -142,3 +142,58 @@ def test_overview_assembles_headline(users, sessions, assessments, progress):
 
 def test_overview_missing_user(progress):
     assert progress.overview("ghost") is None
+
+
+def test_next_level_never_points_below_the_level_on_screen(users, sessions, assessments, progress):
+    """A learner who set their level to 3 while scoring at 1 was shown
+    "Level 3" beside "reach level 2". A goal below where the dashboard says you
+    already are is worse than no goal."""
+    from backend.coldpath.scoring import SCORING_MODEL_VERSION
+    from backend.core.util import new_id, now_iso
+    from backend.domain.models import Assessment
+
+    uid = "lvl" + new_id()[:8]
+    users.create(uid, "Level Mismatch", current_level=3)   # self-assessed high
+    s = sessions.create(uid, mode="free")
+    for i in range(4):
+        assessments.add(
+            Assessment(
+                assessment_id=new_id("a"),
+                user_id=uid,
+                session_id=s.session_id,
+                scoring_model_version=SCORING_MODEL_VERSION,
+                overall=40.0 + i,          # scoring around level 1
+                created_at=now_iso(),
+            )
+        )
+
+    ov = progress.overview(uid)
+    assert ov.current_level == 3
+    assert ov.scored_level is not None and ov.scored_level < 3, "scores are below the chosen level"
+    # The goal must be above the headline number, not below it.
+    assert ov.next_level is None or ov.next_level > ov.current_level
+
+
+def test_next_level_is_unaffected_when_the_two_agree(users, sessions, assessments, progress):
+    from backend.coldpath.scoring import SCORING_MODEL_VERSION, level_for_overall
+    from backend.core.util import new_id, now_iso
+    from backend.domain.models import Assessment
+
+    uid = "lvl" + new_id()[:8]
+    users.create(uid, "Consistent", current_level=0)
+    s = sessions.create(uid, mode="free")
+    for i in range(4):
+        assessments.add(
+            Assessment(
+                assessment_id=new_id("a"),
+                user_id=uid,
+                session_id=s.session_id,
+                scoring_model_version=SCORING_MODEL_VERSION,
+                overall=30.0 + i,
+                created_at=now_iso(),
+            )
+        )
+    ov = progress.overview(uid)
+    assert ov.scored_level == level_for_overall(ov.latest_overall)
+    if ov.next_level is not None:
+        assert ov.next_level == max(ov.scored_level, ov.current_level) + 1

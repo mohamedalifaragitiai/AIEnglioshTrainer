@@ -1391,10 +1391,14 @@ async function renderDashboard(){
   });
   const eta=ov.estimated_days_to_next_level;
   $('#tiles').innerHTML=[
-    {l:'Level',v:ov.current_level,s:LEVELS[ov.current_level]},
+    // When the chosen level and the scored level disagree, say which is which
+    // rather than printing one and quietly contradicting it two tiles later.
+    {l:'Level',v:ov.current_level,s:(ov.scored_level!=null&&ov.scored_level!==ov.current_level)
+        ? `you chose this · scores say ${ov.scored_level}` : LEVELS[ov.current_level]},
     {l:'Streak',v:ov.streak_days+'d',s:'keep it up'},
     {l:'Overall',v:ov.latest_overall!=null?Math.round(ov.latest_overall)+'%':'—',s:ov.assessments_count+' assessments'},
     {l:'To next level',v:eta!=null?eta+'d':'—',s:ov.next_level!=null?'reach level '+ov.next_level:'top level'},
+
   ].map(t=>`<div class="card tile"><div class="l">${t.l}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join('');
   drawRadar('radar',ov.latest_scores||{});drawTrend('trend',trend);renderSkills(ov.latest_scores||{});renderPlan(plan);
   $('#assessTable').innerHTML=`<tr><th>when</th><th>overall</th>${DIMS.map(d=>`<th>${d.slice(0,4)}</th>`).join('')}</tr>`+
