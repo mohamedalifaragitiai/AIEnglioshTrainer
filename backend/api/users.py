@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from backend.api.deps import Repositories, current_user_id, get_repos
 from backend.domain.models import User
@@ -49,6 +50,32 @@ class UpdateUserRequest(BaseModel):
 
 class ChooseLevelRequest(BaseModel):
     current_level: int = Field(..., ge=0, le=5)
+
+
+EmailField = Annotated[
+    str,
+    StringConstraints(max_length=160, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
+]
+
+
+class ProfileRequest(BaseModel):
+    """Everything a learner may change about themselves.
+
+    Deliberately excludes current_level, is_admin and level_selected: a profile
+    form must not be able to grant admin or silently rewrite progress. Those
+    have their own endpoints with their own meaning.
+    """
+
+    display_name: str | None = Field(None, min_length=1, max_length=80)
+    full_name: str | None = Field(None, max_length=120)
+    # A shape check, not EmailStr: that pulls in email-validator, and this
+    # project installs nothing outside uv.lock. The address is a contact
+    # detail here, never an identity or a delivery target.
+    email: EmailField | None = None
+    country: str | None = Field(None, max_length=80)
+    native_language: str | None = Field(None, max_length=80)
+    goal: str | None = Field(None, max_length=400)
+    voice: Literal["female", "male"] | None = None
 
 
 @router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
@@ -104,6 +131,30 @@ def update_user(
         current_level=body.current_level,
         settings_json=body.settings_json,
     )
+
+
+@router.get("/{user_id}/profile", response_model=User)
+def get_profile(user_id: str, repos: Repositories = Depends(get_repos)) -> User:
+    user = repos.users.get(user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"user {user_id!r} not found")
+    return user
+
+
+@router.patch("/{user_id}/profile", response_model=User)
+def update_profile(
+    user_id: str, body: ProfileRequest, repos: Repositories = Depends(get_repos)
+) -> User:
+    """Update the learner's own details. Every field is optional and only the
+    ones supplied are written, so a form that shows three fields cannot blank
+    the other four."""
+    if not repos.users.exists(user_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"user {user_id!r} not found")
+    fields = body.model_dump(exclude_unset=True, exclude_none=True)
+    user = repos.users.update_profile(user_id, **fields)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"user {user_id!r} not found")
+    return user
 
 
 @router.post("/{user_id}/level", response_model=User)

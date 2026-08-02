@@ -42,7 +42,7 @@ class FakeTTS:
     def available(self):
         return True
 
-    async def synthesize_stream(self, text) -> AsyncIterator[bytes]:
+    async def synthesize_stream(self, text, *, voice=None) -> AsyncIterator[bytes]:
         if self.fail:
             raise RuntimeError("tts exploded")
         for _ in range(self.chunks):

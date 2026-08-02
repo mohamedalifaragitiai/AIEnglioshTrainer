@@ -544,9 +544,30 @@
     <h4 style="margin:20px 0 8px">Profile</h4>
     <div style="display:flex;flex-direction:column;gap:8px">
       <label class="muted" for="setName" style="font-size:12.5px">Display name</label>
-      <input id="setName" placeholder="Your name"/>
+      <input id="setName" placeholder="Shown around the app"/>
+      <label class="muted" for="setFullName" style="font-size:12.5px">Full name</label>
+      <input id="setFullName" placeholder="Your full name"/>
+      <label class="muted" for="setEmail" style="font-size:12.5px">Email</label>
+      <input id="setEmail" type="email" placeholder="you@example.com"/>
+      <div class="row" style="gap:8px">
+        <div style="flex:1">
+          <label class="muted" for="setCountry" style="font-size:12.5px">Country</label>
+          <input id="setCountry" placeholder="Egypt" style="width:100%"/>
+        </div>
+        <div style="flex:1">
+          <label class="muted" for="setNative" style="font-size:12.5px">Native language</label>
+          <input id="setNative" placeholder="Arabic" style="width:100%"/>
+        </div>
+      </div>
+      <label class="muted" for="setGoal" style="font-size:12.5px">Why are you learning?</label>
+      <input id="setGoal" placeholder="Work, travel, exams…"/>
       <label class="muted" for="setLevel" style="font-size:12.5px">Level</label>
       <select id="setLevel"></select>
+      <label class="muted" for="setVoice" style="font-size:12.5px">Coach voice</label>
+      <select id="setVoice">
+        <option value="female">Woman</option>
+        <option value="male">Man</option>
+      </select>
       <button id="setSaveProfile" class="btn-primary" style="align-self:flex-start">Save profile</button>
     </div>
 
@@ -1082,8 +1103,14 @@ function setMsg(text,bad){
   el.style.color=bad?'var(--bad)':'var(--good)';
 }
 function openSettings(){
-  const u=(usersCache||[]).find(x=>x.user_id===currentUser);
-  $('#setName').value=u?u.display_name:'';
+  const u=(usersCache||[]).find(x=>x.user_id===currentUser)||{};
+  $('#setName').value=u.display_name||'';
+  $('#setFullName').value=u.full_name||'';
+  $('#setEmail').value=u.email||'';
+  $('#setCountry').value=u.country||'';
+  $('#setNative').value=u.native_language||'';
+  $('#setGoal').value=u.goal||'';
+  $('#setVoice').value=u.voice||'female';
   if(!$('#setLevel').options.length)
     $('#setLevel').innerHTML=LEVELS.map((n,i)=>`<option value="${i}">${i} · ${n}</option>`).join('');
   $('#setLevel').value=String(currentLevel||0);
@@ -1100,13 +1127,21 @@ $('#settingsModal').addEventListener('click',e=>{
 $('#setSaveProfile').addEventListener('click',async()=>{
   const name=$('#setName').value.trim();
   if(!name)return setMsg('A display name cannot be empty.',true);
+  // Only send what was filled in: the endpoint writes the fields it receives,
+  // so sending empty strings would blank details the form did not ask about.
+  const profile={display_name:name};
+  for(const [key,sel] of [['full_name','#setFullName'],['email','#setEmail'],
+      ['country','#setCountry'],['native_language','#setNative'],['goal','#setGoal']]){
+    const v=$(sel).value.trim(); if(v)profile[key]=v;
+  }
+  profile.voice=$('#setVoice').value;
   try{
-    await api.patch(`/users/${encodeURIComponent(currentUser)}`,{display_name:name});
+    await api.patch(`/users/${encodeURIComponent(currentUser)}/profile`,profile);
     // POST /level, not PATCH: choosing a level is a decision, and PATCH is what
     // the scoring pipeline uses when it moves someone automatically.
     await api.post(`/users/${encodeURIComponent(currentUser)}/level`,{current_level:+$('#setLevel').value});
     await refreshUsers();
-    setMsg('Profile saved.',false);
+    setMsg('Profile saved. A new voice applies to your next reply.',false);
   }catch(e){setMsg('Could not save: '+e.message,true);}
 });
 $('#setSavePw').addEventListener('click',async()=>{
@@ -1486,13 +1521,48 @@ function setState(s){sttate=s;const b=$('#micBtn');b.classList.toggle('rec',s===
   if(s==='recording'){recStart=Date.now();const upd=()=>$('#wsStatus').innerHTML=`<span class="rec-t">● Recording ${fmtT(Date.now()-recStart)}</span> — tap ⏹ when you finish`;upd();recTimer=setInterval(upd,250);}
   else if(s==='held')$('#wsStatus').innerHTML=`Recorded ${fmtT(heldMs)} — <b>Send</b> it, or re-record`;
   else if(s==='busy')$('#wsStatus').innerHTML=`Coach is responding<span class="dots"><i></i><i></i><i></i></span>`;
-  else $('#wsStatus').textContent='Tap the mic to speak';
+  else $('#wsStatus').textContent='Hold the mic to talk, release to send — or tap for hands-free';
   $('#endBtn').style.display=(ws&&ws.readyState===1)?'':'none';}
 
-$('#micBtn').addEventListener('click',async()=>{
+// WhatsApp-style: hold the mic to talk, release to send. A short tap instead
+// starts hands-free recording, which is what makes long answers and accessibility
+// possible — holding a button for two minutes is not a reasonable ask, and a
+// keyboard cannot hold anything at all.
+const TAP_MS=350;
+let pressStart=0, heldMode=false;
+function micDown(e){
+  if(sttate==='busy'||sttate==='held')return;
+  if(sttate==='recording'&&heldMode){heldMode=false;holdTurn();return;}
+  if(e&&e.preventDefault)e.preventDefault();
+  if(sttate==='recording')return;
+  pressStart=Date.now(); heldMode=false;
+  startSpeaking();
+}
+function micUp(){
+  if(sttate!=='recording')return;
+  const heldFor=Date.now()-pressStart;
+  if(heldFor<TAP_MS){
+    // A tap, not a hold: stay recording until they tap again.
+    heldMode=true;
+    $('#wsStatus').innerHTML=`<span class="rec-t">● Recording</span> — tap ⏹ when you finish`;
+    return;
+  }
+  holdTurn();
+  sendTurn();            // released after a real hold: send it, like a voice note
+}
+$('#micBtn').addEventListener('pointerdown',micDown);
+// Listen on the window: a finger that slides off the button still has to end
+// the recording, or the mic stays live with nothing on screen saying so.
+window.addEventListener('pointerup',()=>{ if(!heldMode)micUp(); });
+window.addEventListener('pointercancel',()=>{ if(!heldMode&&sttate==='recording')holdTurn(); });
+$('#micBtn').addEventListener('click',async(e)=>{
+  // Pointer events already handled the press; this only catches keyboard
+  // activation (Enter/Space), which produces a click with no pointer.
+  if(e.detail!==0)return;
   if(sttate==='busy')return;
-  if(sttate==='recording'){holdTurn();return;}
-  if(sttate==='held')return;            // Send or Re-record decides from here
+  if(sttate==='recording'){heldMode=false;holdTurn();return;}
+  if(sttate==='held')return;
+  heldMode=true;
   await startSpeaking();
 });
 $('#turnSend').addEventListener('click',sendTurn);

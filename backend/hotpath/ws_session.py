@@ -130,6 +130,7 @@ async def handle_ws_session(ws: WebSocket, settings: Settings) -> None:
         # reading a fixed passage, so a coach reply is noise in their history and
         # an LLM+TTS run this box does not need to spend.
         reply=ws.query_params.get("reply", "1").lower() not in ("0", "false", "no"),
+        voice=(user.voice if user else None),
     )
     frame_bytes = int(settings.hotpath_sample_rate * settings.vad_frame_ms / 1000) * 2
     pending = bytearray()

@@ -26,6 +26,12 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
   const coachOpen = useRef(false);
   const recStart = useRef(0);
   const heldMs = useRef(0);
+  // WhatsApp-style: hold to talk, release to send. A short tap starts hands-free
+  // recording instead — holding a button through a two-minute answer is not a
+  // reasonable ask, and a keyboard cannot hold anything at all.
+  const TAP_MS = 350;
+  const pressStart = useRef(0);
+  const handsFree = useRef(false);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const setSt = (s: St) => {
@@ -47,7 +53,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           ? "Recorded — send it, or re-record"
           : s === "busy"
             ? "Coach is responding"
-            : "Tap the mic to speak",
+            : "Hold to talk, release to send — or tap for hands-free",
     );
   };
 
@@ -197,6 +203,45 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
     await onMic();
   }
 
+  const micDown = async (e: React.PointerEvent) => {
+    e.preventDefault();
+    if (stateRef.current === "busy" || stateRef.current === "held") return;
+    if (stateRef.current === "recording") {
+      if (handsFree.current) {
+        handsFree.current = false;   // second tap in hands-free: stop, offer Send
+        hold();
+      }
+      return;
+    }
+    pressStart.current = Date.now();
+    handsFree.current = false;
+    await onMic();
+  };
+
+  const micUp = () => {
+    if (stateRef.current !== "recording" || handsFree.current) return;
+    if (Date.now() - pressStart.current < TAP_MS) {
+      handsFree.current = true;      // a tap: keep recording until they tap again
+      setStatus("recording — tap to stop");
+      return;
+    }
+    hold();
+    sendTurn();                      // released after a real hold: send it
+  };
+
+  // On the window, not the button: a finger that slides off still has to end the
+  // recording, or the mic stays live with nothing on screen saying so.
+  useEffect(() => {
+    const up = () => micUp();
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function onMic() {
     if (state === "busy" || stateRef.current === "busy") return;
     if (stateRef.current === "recording") {
@@ -263,7 +308,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           <div className="font-semibold">
             {state === "recording" ? (
               <span className="text-bad font-bold">
-                ● Recording {fmt(recMs)} — tap ⏹ when you finish
+                ● Recording {fmt(recMs)} — release to send
               </span>
             ) : state === "held" ? (
               <span>Recorded {fmt(heldMs.current)} — send it, or re-record</span>
@@ -300,7 +345,14 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           </button>
         )}
         <button
-          onClick={onMic}
+          onPointerDown={micDown}
+          onClick={(e) => {
+            // Pointer events already handled the press; this only catches
+            // keyboard activation (Enter/Space), which produces no pointer.
+            if (e.detail !== 0) return;
+            handsFree.current = true;
+            void onMic();
+          }}
           disabled={state === "busy"}
           className={`w-14 h-14 rounded-full grid place-items-center text-xl border-none transition ${
             state === "recording"

@@ -50,6 +50,8 @@ class TurnContext:
     # reading a fixed passage, so a conversational reply is noise in their
     # history and a needless LLM+TTS run on a box with one GPU.
     reply: bool = True
+    # The coach's voice for this learner, semantic ("female"/"male").
+    voice: str | None = None
 
 
 class HotPathPipeline:
@@ -124,7 +126,7 @@ class HotPathPipeline:
                 speech = speakable_text(phrase)
                 if not speech:
                     continue
-                async for chunk in self.tts.synthesize_stream(speech):
+                async for chunk in self.tts.synthesize_stream(speech, voice=ctx.voice):
                     if first_chunk_at is None:
                         first_chunk_at = perf_counter()
                         timings.tts_first_ms = (first_chunk_at - first_token_at) * 1000

@@ -173,6 +173,22 @@ CREATE INDEX IF NOT EXISTS idx_reading_user_time
   ON reading_attempts(user_id, created_at);
 """
 
+# Profile fields and the coach's voice. Columns on `users` rather than a
+# separate table: these are one-to-one with the learner, always fetched with
+# them, and never queried on their own — a join would buy nothing.
+#
+# `voice` stores a semantic value ("female"/"male"), not a Kokoro voice id. The
+# id is a model detail that changes when the model does; a stored "am_michael"
+# would become meaningless the day the voice pack is swapped.
+_SCHEMA_006 = """
+ALTER TABLE users ADD COLUMN full_name       TEXT;
+ALTER TABLE users ADD COLUMN email           TEXT;
+ALTER TABLE users ADD COLUMN country         TEXT;
+ALTER TABLE users ADD COLUMN native_language TEXT;
+ALTER TABLE users ADD COLUMN goal            TEXT;
+ALTER TABLE users ADD COLUMN voice           TEXT NOT NULL DEFAULT 'female';
+"""
+
 # (version, description, sql) — append new tuples; never rewrite an applied one.
 MIGRATIONS: list[tuple[int, str, str]] = [
     (1, "initial schema", _SCHEMA_001),
@@ -180,6 +196,7 @@ MIGRATIONS: list[tuple[int, str, str]] = [
     (3, "auth: admin flag on users", _SCHEMA_003),
     (4, "onboarding: has the learner chosen their level", _SCHEMA_004),
     (5, "reading: persisted read-aloud attempts", _SCHEMA_005),
+    (6, "profile fields and coach voice", _SCHEMA_006),
 ]
 
 

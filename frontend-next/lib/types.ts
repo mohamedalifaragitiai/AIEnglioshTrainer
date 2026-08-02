@@ -19,6 +19,13 @@ export interface User {
   is_admin?: boolean;
   /** False until the learner picks a starting level themselves. */
   level_selected?: boolean;
+  full_name?: string | null;
+  email?: string | null;
+  country?: string | null;
+  native_language?: string | null;
+  goal?: string | null;
+  /** Coach voice: semantic, not a model voice id. */
+  voice?: "female" | "male";
 }
 
 export interface AuthStatus {

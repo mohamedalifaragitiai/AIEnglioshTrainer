@@ -114,3 +114,61 @@ def test_scoring_advancing_a_level_does_not_count_as_choosing():
         patched = client.patch(f"/users/{uid}", json={"current_level": 3}).json()
         assert patched["current_level"] == 3
         assert patched["level_selected"] is False
+
+
+def test_profile_round_trip_and_partial_update():
+    with TestClient(app) as client:
+        uid = _uid()
+        client.post("/users", json={"user_id": uid, "display_name": "Before"})
+
+        full = client.patch(
+            f"/users/{uid}/profile",
+            json={
+                "display_name": "Abu Ali",
+                "full_name": "Mohamed Ali Farag",
+                "email": "abu@example.com",
+                "country": "Egypt",
+                "native_language": "Arabic",
+                "goal": "Work in English",
+                "voice": "male",
+            },
+        ).json()
+        assert full["full_name"] == "Mohamed Ali Farag"
+        assert full["voice"] == "male"
+
+        # A form showing one field must not blank the other six.
+        partial = client.patch(f"/users/{uid}/profile", json={"country": "UAE"}).json()
+        assert partial["country"] == "UAE"
+        assert partial["full_name"] == "Mohamed Ali Farag"
+        assert partial["email"] == "abu@example.com"
+        assert partial["voice"] == "male"
+
+
+def test_profile_cannot_grant_admin_or_move_level():
+    """A profile form is not a privilege escalation route."""
+    with TestClient(app) as client:
+        uid = _uid()
+        client.post("/users", json={"user_id": uid, "display_name": "X"})
+        client.patch(
+            f"/users/{uid}/profile",
+            json={"full_name": "X", "is_admin": True, "current_level": 5, "level_selected": True},
+        )
+        user = client.get(f"/users/{uid}").json()
+        assert user["is_admin"] is False
+        assert user["current_level"] == 0
+        assert user["level_selected"] is False
+
+
+def test_profile_rejects_a_bad_email_and_an_unknown_voice():
+    with TestClient(app) as client:
+        uid = _uid()
+        client.post("/users", json={"user_id": uid, "display_name": "X"})
+        assert client.patch(f"/users/{uid}/profile", json={"email": "nope"}).status_code == 422
+        assert client.patch(f"/users/{uid}/profile", json={"voice": "robot"}).status_code == 422
+
+
+def test_new_profiles_default_to_the_female_voice():
+    with TestClient(app) as client:
+        uid = _uid()
+        created = client.post("/users", json={"user_id": uid, "display_name": "X"}).json()
+        assert created["voice"] == "female"

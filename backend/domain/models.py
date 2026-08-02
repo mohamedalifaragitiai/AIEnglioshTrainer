@@ -47,6 +47,16 @@ class User(BaseModel):
     # alone cannot express this: 0 is both "Beginner" and "never asked".
     level_selected: bool = False
 
+    # --- profile (all optional: nobody is blocked from practising by a form) ---
+    full_name: str | None = None
+    email: str | None = None
+    country: str | None = None
+    native_language: str | None = None
+    goal: str | None = None
+    # Which coach voice to speak with. Semantic, not a Kokoro voice id — see
+    # migration 006.
+    voice: str = "female"
+
 
 class Session(BaseModel):
     session_id: str

@@ -56,7 +56,7 @@ class FakeTTS:
     def available(self) -> bool:
         return True
 
-    async def synthesize_stream(self, text: str) -> AsyncIterator[bytes]:
+    async def synthesize_stream(self, text: str, *, voice=None) -> AsyncIterator[bytes]:
         await asyncio.sleep(self.first_ms / 1000)
         for _ in range(self.chunks):
             yield b"\x00\x00" * 160

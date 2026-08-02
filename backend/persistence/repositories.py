@@ -113,6 +113,32 @@ class UserRepository:
             cur = con.execute("DELETE FROM users WHERE user_id=?", (user_id,))
             return cur.rowcount > 0
 
+    # Editable profile columns. A whitelist, not "whatever the caller sent":
+    # this method writes column names into SQL, so an unchecked key would be an
+    # injection point, and is_admin must never be settable from a profile form.
+    PROFILE_FIELDS = (
+        "display_name",
+        "full_name",
+        "email",
+        "country",
+        "native_language",
+        "goal",
+        "voice",
+    )
+
+    def update_profile(self, user_id: str, **fields) -> User | None:
+        sets, params = [], []
+        for col, val in fields.items():
+            if col not in self.PROFILE_FIELDS or val is None:
+                continue
+            sets.append(f"{col}=?")
+            params.append(val)
+        if sets:
+            params.append(user_id)
+            with self.db.connection() as con:
+                con.execute(f"UPDATE users SET {', '.join(sets)} WHERE user_id=?", params)
+        return self.get(user_id)
+
     def set_level_selected(self, user_id: str, chosen: bool) -> bool:
         with self.db.connection() as con:
             cur = con.execute(

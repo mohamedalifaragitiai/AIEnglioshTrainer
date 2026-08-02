@@ -133,6 +133,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ current_password, new_password }),
     }),
+  updateProfile: (
+    id: string,
+    patch: {
+      display_name?: string;
+      full_name?: string;
+      email?: string;
+      country?: string;
+      native_language?: string;
+      goal?: string;
+      voice?: "female" | "male";
+    },
+  ) =>
+    req<User>(`/users/${encodeURIComponent(id)}/profile`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
   updateUser: (id: string, patch: { display_name?: string; current_level?: number }) =>
     req<User>(`/users/${encodeURIComponent(id)}`, {
       method: "PATCH",

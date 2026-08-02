@@ -72,7 +72,7 @@ class FakeTTS:
     def available(self):
         return True
 
-    async def synthesize_stream(self, text) -> AsyncIterator[bytes]:
+    async def synthesize_stream(self, text, *, voice=None) -> AsyncIterator[bytes]:
         for _ in range(3):
             yield b"\x00\x00" * 160
 
@@ -127,7 +127,7 @@ class SlowTTS:
     def available(self):
         return True
 
-    async def synthesize_stream(self, text) -> AsyncIterator[bytes]:
+    async def synthesize_stream(self, text, *, voice=None) -> AsyncIterator[bytes]:
         import asyncio
 
         for _ in range(self.TOTAL):

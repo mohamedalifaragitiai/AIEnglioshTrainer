@@ -14,6 +14,12 @@ export default function SettingsPage() {
   const router = useRouter();
 
   const [name, setName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [country, setCountry] = useState("");
+  const [nativeLanguage, setNativeLanguage] = useState("");
+  const [goal, setGoal] = useState("");
+  const [voice, setVoice] = useState<"female" | "male">("female");
   const [level, setLevel] = useState(currentLevel);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -25,6 +31,12 @@ export default function SettingsPage() {
   useEffect(() => {
     if (user) {
       setName(user.display_name);
+      setFullName(user.full_name ?? "");
+      setEmail(user.email ?? "");
+      setCountry(user.country ?? "");
+      setNativeLanguage(user.native_language ?? "");
+      setGoal(user.goal ?? "");
+      setVoice(user.voice ?? "female");
       setLevel(user.current_level);
     }
   }, [user]);
@@ -35,12 +47,26 @@ export default function SettingsPage() {
     if (!name.trim()) return setNote({ text: "A display name cannot be empty.", bad: true });
     setBusy(true);
     try {
-      await api.updateUser(currentUser, { display_name: name.trim() });
+      // Only send what is filled in: the endpoint writes the fields it
+      // receives, so empty strings would blank details this form did not ask
+      // about.
+      const patch: Record<string, string> = { display_name: name.trim(), voice };
+      const optional: [string, string][] = [
+        ["full_name", fullName],
+        ["email", email],
+        ["country", country],
+        ["native_language", nativeLanguage],
+        ["goal", goal],
+      ];
+      for (const [key, value] of optional) {
+        if (value.trim()) patch[key] = value.trim();
+      }
+      await api.updateProfile(currentUser, patch);
       // POST /level, not PATCH: choosing a level is a decision, and PATCH is
       // what the scoring pipeline uses when it moves someone automatically.
       await api.chooseLevel(currentUser, level);
       await refresh();
-      setNote({ text: "Profile saved.", bad: false });
+      setNote({ text: "Profile saved. A new voice applies to your next reply.", bad: false });
     } catch (e) {
       setNote({ text: `Could not save: ${(e as Error).message}`, bad: true });
     }
@@ -129,6 +155,68 @@ export default function SettingsPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
+        <label className="text-muted text-xs block" htmlFor="full_name">
+          Full name
+        </label>
+        <input
+          id="full_name"
+          className="btn text-left w-full"
+          placeholder="Your full name"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
+        <label className="text-muted text-xs block" htmlFor="email">
+          Email
+        </label>
+        <input
+          id="email"
+          className="btn text-left w-full"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <label className="text-muted text-xs block" htmlFor="country">
+          Country
+        </label>
+        <input
+          id="country"
+          className="btn text-left w-full"
+          placeholder="Egypt"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+        />
+        <label className="text-muted text-xs block" htmlFor="native">
+          Native language
+        </label>
+        <input
+          id="native"
+          className="btn text-left w-full"
+          placeholder="Arabic"
+          value={nativeLanguage}
+          onChange={(e) => setNativeLanguage(e.target.value)}
+        />
+        <label className="text-muted text-xs block" htmlFor="goal">
+          Why are you learning?
+        </label>
+        <input
+          id="goal"
+          className="btn text-left w-full"
+          placeholder="Work, travel, exams…"
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+        />
+        <label className="text-muted text-xs block" htmlFor="voice">
+          Coach voice
+        </label>
+        <select
+          id="voice"
+          className="btn w-full"
+          value={voice}
+          onChange={(e) => setVoice(e.target.value as "female" | "male")}
+        >
+          <option value="female">Woman</option>
+          <option value="male">Man</option>
+        </select>
         <label className="text-muted text-xs block" htmlFor="level">
           Level
         </label>
