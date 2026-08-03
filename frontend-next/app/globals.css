@@ -11,16 +11,27 @@
   /* Neutral surfaces, one confident accent. The previous palette tinted every
      surface the same blue as the accent, so nothing separated from anything —
      the muddiness was saturation competing, not brightness. */
-  --c-bg: 10 12 17;
-  --c-panel: 20 24 33;
-  --c-panel2: 27 32 43;
-  --c-panel3: 36 43 56;
-  --c-line: 43 50 63;
-  --c-text: 243 245 249;
-  --c-muted: 152 162 179;
-  --c-dim: 138 148 168;
-  --c-accent: 45 212 191;
-  --c-accent2: 129 140 248;
+  --c-bg: 8 11 22;
+  --c-panel: 19 26 46;
+  --c-panel2: 26 34 56;
+  --c-panel3: 36 46 73;
+  --c-line: 40 50 76;
+  --c-text: 238 241 248;
+  --c-muted: 154 165 192;
+  --c-dim: 127 138 166;
+  --c-accent: 124 108 246;
+  --c-accent2: 79 141 247;
+  /* One colour per skill, identical to the served UI's --sk-* tokens. A learner
+     who has seen pronunciation in violet twice reads the colour, not the label. */
+  --sk-pronunciation: #8b5cf6;
+  --sk-fluency: #3b82f6;
+  --sk-confidence: #22c55e;
+  --sk-grammar: #f59e0b;
+  --sk-vocabulary: #ec4899;
+  --sk-listening: #f97316;
+  --sk-coherence: #06b6d4;
+  --sk-relevance: #14b8a6;
+  --glow: 0 10px 34px rgba(124, 108, 246, 0.3);
   --c-good: 52 211 153;
   --c-warn: 251 191 36;
   --c-bad: 248 113 113;
@@ -33,16 +44,25 @@
   color-scheme: light;
   /* White surfaces and a near-black text stack: on a bright screen the win is
      contrast and crisp hairlines, not tinting everything faintly blue. */
-  --c-bg: 246 247 249;
+  --c-bg: 244 245 251;
   --c-panel: 255 255 255;
-  --c-panel2: 242 244 247;
-  --c-panel3: 232 235 240;
-  --c-line: 224 228 234;
-  --c-text: 17 24 39;
-  --c-muted: 75 85 99;
-  --c-dim: 91 102 120;
-  --c-accent: 15 157 143;
-  --c-accent2: 79 70 229;
+  --c-panel2: 241 242 250;
+  --c-panel3: 230 232 244;
+  --c-line: 223 226 238;
+  --c-text: 15 20 40;
+  --c-muted: 75 85 115;
+  --c-dim: 91 101 132;
+  --c-accent: 91 70 224;
+  --c-accent2: 37 99 235;
+  --sk-pronunciation: #7c3aed;
+  --sk-fluency: #2563eb;
+  --sk-confidence: #059669;
+  --sk-grammar: #b45309;
+  --sk-vocabulary: #be185d;
+  --sk-listening: #c2410c;
+  --sk-coherence: #0e7490;
+  --sk-relevance: #0f766e;
+  --glow: 0 10px 30px rgba(91, 70, 224, 0.2);
   --c-good: 5 150 105;
   --c-warn: 180 83 9;
   --c-bad: 220 38 38;
@@ -76,8 +96,31 @@ body {
 }
 
 @layer components {
+  /* The one lit surface on the page. Everything else is a flat panel, so the
+     violet wash here reads as "start", not as decoration. */
+  .hero {
+    @apply relative overflow-hidden rounded-2xl border border-line p-6 shadow-sm
+      flex items-center gap-6 flex-wrap;
+    background:
+      radial-gradient(120% 160% at 100% 0%, rgba(124, 108, 246, 0.3), transparent 60%),
+      linear-gradient(135deg, rgb(var(--c-panel2)), rgb(var(--c-panel)));
+  }
+  /* A conic-gradient ring, not a canvas: no redraw on theme change and no second
+     drawing surface for one number. */
+  .ring {
+    @apply relative grid place-items-center shrink-0 rounded-full;
+    width: 118px;
+    height: 118px;
+    background: conic-gradient(rgb(var(--c-accent)) calc(var(--p) * 1%), rgb(var(--c-panel3)) 0);
+  }
+  .ring::before {
+    content: "";
+    @apply absolute rounded-full bg-panel;
+    width: 92px;
+    height: 92px;
+  }
   .card {
-    @apply relative overflow-hidden bg-panel border border-line rounded-xl p-4 shadow-sm;
+    @apply relative overflow-hidden bg-panel border border-line rounded-2xl p-4 shadow-sm;
   }
   /* A hairline of light along the top edge lifts the card off the background
      without spending another border colour on it. */
@@ -95,7 +138,8 @@ body {
   }
   .btn-primary {
     @apply bg-gradient-to-br from-accent to-accent2 text-white border-none font-semibold
-      shadow-md hover:brightness-105;
+      hover:brightness-105;
+    box-shadow: var(--glow);
   }
   .pill {
     @apply text-xs px-2.5 py-1 rounded-full bg-panel2 text-muted;

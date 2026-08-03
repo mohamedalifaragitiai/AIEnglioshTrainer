@@ -27,7 +27,7 @@ import {
 } from "@/components/panels";
 
 export default function Dashboard() {
-  const { currentUser, currentLevel, refresh } = useUser();
+  const { currentUser, currentLevel, refresh, users } = useUser();
   const [ov, setOv] = useState<ProgressOverview | null>(null);
   const [assess, setAssess] = useState<Assessment[]>([]);
   const [trend, setTrend] = useState<SkillPoint[]>([]);
@@ -85,6 +85,54 @@ export default function Dashboard() {
           </Link>
         </div>
       )}
+
+      {/* The hero reads the same numbers as the tiles below it. It exists
+          because four identical tiles give the eye nowhere to land first — a
+          greeting, a ring and one button do. */}
+      {ov.assessments_count > 0 &&
+        (() => {
+          const pct = ov.latest_overall != null ? Math.round(ov.latest_overall) : 0;
+          const first =
+            (users.find((u) => u.user_id === currentUser)?.display_name ?? "").split(" ")[0] ||
+            "there";
+          return (
+            <div className="hero">
+              <div className="flex-1 min-w-[min(100%,260px)]">
+                <h2 className="text-xl font-semibold mb-1">Hello {first} 👋</h2>
+                <p className="text-muted text-sm mb-3.5">
+                  Level {ov.current_level} · {LEVEL_NAMES[ov.current_level]} · {ov.streak_days}-day
+                  streak
+                </p>
+                <div className="h-2.5 rounded-full bg-panel3 overflow-hidden mb-2">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent to-accent2"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-muted text-sm mb-3.5">
+                  {ov.next_level != null
+                    ? `${Math.max(0, 100 - pct)}% to go until level ${ov.next_level}` +
+                      (eta != null ? ` · about ${eta} day${eta === 1 ? "" : "s"} at this pace` : "")
+                    : "You are at the top level — keep it sharp."}
+                </p>
+                <Link href="/practice" className="btn btn-primary inline-block px-5 py-2.5">
+                  🎙️ Continue practising
+                </Link>
+              </div>
+              <div
+                className="ring"
+                style={{ ["--p" as string]: pct }}
+                role="img"
+                aria-label={`Overall score ${pct} percent`}
+              >
+                <div className="relative text-center leading-tight">
+                  <b className="text-2xl block">{pct}%</b>
+                  <span className="text-[10.5px] text-muted uppercase tracking-wide">overall</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* Level first: it sets the difficulty of everything below it, so it
           belongs above the numbers rather than buried between charts. */}
