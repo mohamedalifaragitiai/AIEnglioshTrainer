@@ -857,15 +857,22 @@ async function boot(){
 
   // Which build is answering. Open endpoint, so it renders even signed out.
   $('#year').textContent=new Date().getFullYear();
-  try{const v=await api.get('/version');
-    $('#verPill').textContent='v'+v.version;
-    $('#footVer').textContent=' v'+v.version;
-    if(v.git_sha)$('#verPill').title=`Running build — v${v.version} (${v.git_sha})`;}
-  catch{$('#verPill').classList.add('hidden');}
+  if(isAdmin||!authRequired){
+    try{const v=await api.get('/version');
+      $('#verPill').textContent='v'+v.version;
+      $('#footVer').textContent=' v'+v.version;
+      if(v.git_sha)$('#verPill').title=`Running build — v${v.version} (${v.git_sha})`;}
+    catch{$('#verPill').classList.add('hidden');}
+  }
 
-  try{const m=await api.get('/models');const on=m.some(x=>x.status==='loaded');
-    $('#modelsPill').className='pill '+(on?'on':'off');$('#modelsPill').innerHTML=`<span class="dot"></span>models: ${on?'loaded':'off'}`;}
-  catch{$('#modelsPill').textContent='models: ?';}
+  if(isAdmin){
+    try{const m=await api.get('/models');const on=m.some(x=>x.status==='loaded');
+      // 'hidden' is preserved deliberately: assigning className outright is what
+      // un-hid this pill for every learner.
+      $('#modelsPill').className='pill '+(on?'on':'off');
+      $('#modelsPill').innerHTML=`<span class="dot"></span>models: ${on?'loaded':'off'}`;}
+    catch{$('#modelsPill').innerHTML='models: ?';}
+  }
   try{const t=await api.get('/topics');renderChips(t.recommended||[]);}catch{}
   await refreshUsers();
 }

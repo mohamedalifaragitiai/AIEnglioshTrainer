@@ -104,10 +104,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
         // rather than leaving an empty dashboard with no explanation.
         if (e instanceof AuthError && !onAuthPage) router.replace("/login");
       });
-      api
-        .models()
-        .then((m) => setModelsLoaded(m.some((x) => x.status === "loaded")))
-        .catch(() => setModelsLoaded(null));
+      // Only an admin can see the result, so only an admin asks. `status`
+      // carries is_admin; the state set by refresh() has not landed yet here.
+      if (!status || status.is_admin) {
+        api
+          .models()
+          .then((m) => setModelsLoaded(m.some((x) => x.status === "loaded")))
+          .catch(() => setModelsLoaded(null));
+      }
     })();
 
     return () => {
