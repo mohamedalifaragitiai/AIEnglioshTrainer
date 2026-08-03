@@ -4,27 +4,43 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI English Coach</title>
+<!-- Charts. Vendored, not from a CDN: this box has no internet at runtime.
+     onerror resolves too — a missing bundle must degrade to "no chart", never
+     to a promise that hangs and takes the dashboard down with it. -->
+<script>window.__plotly=new Promise(r=>{window.__plotlyDone=r});</script>
+<script src="/vendor/plotly-basic.min.js" defer
+        onload="window.__plotlyDone()" onerror="window.__plotlyDone()"></script>
 <style>
   :root {
-    /* Neutral surfaces, one confident accent. The previous palette tinted every
-       surface the same blue as the accent, so nothing stood out from anything —
-       the muddiness was saturation competing, not brightness. Greys are now
-       near-neutral and the teal is the only saturated thing on the page. */
-    --bg:#0a0c11; --bg2:#0f1219; --panel:#141821; --panel2:#1b202b; --panel3:#242b38;
-    --line:#2b323f;
-    --text:#f3f5f9; --muted:#98a2b3; --dim:#8a94a8;
-    --accent:#2dd4bf; --accent2:#818cf8; --indigo:#6366f1;
+    /* Identity: deep navy canvas, violet primary. The surfaces carry a blue cast
+       on purpose — a warm-neutral grey next to a violet accent reads as dirty,
+       and the accent has to be the only thing that looks *lit*. Panels step up
+       in lightness rather than in hue, so depth comes from elevation and the
+       violet stays the single point of saturation. */
+    --bg:#080b16; --bg2:#0c1020; --panel:#131a2e; --panel2:#1a2238; --panel3:#242e49;
+    --line:#28324c;
+    --text:#eef1f8; --muted:#9aa5c0; --dim:#7f8aa6;
+    --accent:#7c6cf6; --accent2:#4f8df7; --indigo:#6d5df6;
     --good:#34d399; --warn:#fbbf24; --bad:#f87171;
     --good-bg:rgba(52,211,153,.13); --warn-bg:rgba(251,191,36,.13);
-    --bad-bg:rgba(248,113,113,.13); --accent-bg:rgba(45,212,191,.11);
+    --bad-bg:rgba(248,113,113,.13); --accent-bg:rgba(124,108,246,.13);
+    /* One colour per skill, held constant everywhere that skill appears — chart
+       bar, progress fill, icon tile. A learner who has seen pronunciation in
+       violet twice stops reading the label and starts reading the colour. */
+    --sk-pronunciation:#8b5cf6; --sk-fluency:#3b82f6; --sk-confidence:#22c55e;
+    --sk-grammar:#f59e0b; --sk-vocabulary:#ec4899; --sk-listening:#f97316;
+    --sk-coherence:#06b6d4; --sk-relevance:#14b8a6;
     /* Layout: one container width shared by header, nav and main. The page
        used to cap content at 1180px while the header ran edge-to-edge, so on
        a wide screen the cards floated in the middle of a header that did not
        line up with them. Percentages rather than vw: vw includes the
        scrollbar and would offset the header by its width. */
     --maxw:1680px; --gutter:clamp(14px,2.2vw,34px);
-    --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.30), 0 8px 24px rgba(0,0,0,.22);
-    --glass:rgba(10,12,17,.86); --hairline:rgba(255,255,255,.07);
+    --radius:18px; --shadow:0 1px 2px rgba(0,0,0,.34), 0 10px 30px rgba(0,0,0,.28);
+    --glass:rgba(8,11,22,.86); --hairline:rgba(255,255,255,.07);
+    /* A violet glow, used only on the hero and the primary button. Two lit
+       things on a page is a focal point; five is a fairground. */
+    --glow:0 10px 34px rgba(124,108,246,.30);
     /* Flat. The old radial wash lit one corner and left the rest looking dirty. */
     --page:none;
   }
@@ -34,15 +50,22 @@
   :root[data-theme="light"] {
     /* White surfaces with a near-black text stack: on a bright screen the win
        comes from contrast and crisp hairlines, not from tinting everything. */
-    --bg:#f6f7f9; --bg2:#ffffff; --panel:#ffffff; --panel2:#f2f4f7; --panel3:#e8ebf0;
-    --line:#e0e4ea;
-    --text:#111827; --muted:#4b5563; --dim:#5b6678;
-    --accent:#0f9d8f; --accent2:#4f46e5; --indigo:#4f46e5;
+    /* White surfaces with a faint indigo cast, so the identity survives the
+       switch: the same violet on pure white reads cold and unrelated. Accents
+       darken because a light violet has no contrast against white. */
+    --bg:#f4f5fb; --bg2:#ffffff; --panel:#ffffff; --panel2:#f1f2fa; --panel3:#e6e8f4;
+    --line:#dfe2ee;
+    --text:#0f1428; --muted:#4b5573; --dim:#5b6584;
+    --accent:#5b46e0; --accent2:#2563eb; --indigo:#5b46e0;
     --good:#059669; --warn:#b45309; --bad:#dc2626;
     --good-bg:rgba(5,150,105,.09); --warn-bg:rgba(180,83,9,.09);
-    --bad-bg:rgba(220,38,38,.08); --accent-bg:rgba(15,157,143,.08);
-    --shadow:0 1px 2px rgba(17,24,39,.06), 0 8px 24px rgba(17,24,39,.06);
+    --bad-bg:rgba(220,38,38,.08); --accent-bg:rgba(91,70,224,.09);
+    --sk-pronunciation:#7c3aed; --sk-fluency:#2563eb; --sk-confidence:#059669;
+    --sk-grammar:#b45309; --sk-vocabulary:#be185d; --sk-listening:#c2410c;
+    --sk-coherence:#0e7490; --sk-relevance:#0f766e;
+    --shadow:0 1px 2px rgba(17,24,39,.06), 0 8px 24px rgba(17,24,39,.07);
     --glass:rgba(255,255,255,.88); --hairline:rgba(17,24,39,.05);
+    --glow:0 10px 30px rgba(91,70,224,.20);
     --page:none;
   }
   * { box-sizing:border-box; }
@@ -71,6 +94,36 @@
   .skel-line{height:12px;margin:9px 0}
   .skel-tile{height:96px;border-radius:var(--radius)}
   .skel-chart{height:280px;border-radius:var(--radius)}
+  /* Plotly sizes to its container, so the container is what sets the height.
+     min-width:0 because a grid child otherwise refuses to shrink and the
+     chart pushes the card past the viewport on a phone. */
+  .plot{width:100%;height:300px;min-width:0}
+  .plot-radar{height:360px}
+  @media(max-width:820px){.plot{height:260px}.plot-radar{height:300px}}
+  /* hero: the one lit surface on the page. Everything else is a flat panel, so
+     the violet wash here reads as "start", not as decoration. */
+  .hero{position:relative;overflow:hidden;border-radius:var(--radius);padding:22px 24px;
+    border:1px solid var(--line);background:
+      radial-gradient(120% 160% at 100% 0%, rgba(124,108,246,.30), transparent 60%),
+      linear-gradient(135deg, var(--panel2), var(--panel));
+    box-shadow:var(--shadow);display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+  .hero h2{margin:0 0 4px;font-size:21px;letter-spacing:-.2px}
+  .hero .sub{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+  .hero .grow{flex:1;min-width:min(100%,260px)}
+  .hero .cta{padding:11px 20px}
+  /* The ring is a conic-gradient, not a canvas: it needs no redraw on theme
+     change and no second drawing surface for one number. */
+  .ring{--p:0;width:118px;height:118px;border-radius:50%;flex:none;display:grid;place-items:center;
+    background:conic-gradient(var(--accent) calc(var(--p)*1%), var(--panel3) 0)}
+  .ring::before{content:"";position:absolute;width:92px;height:92px;border-radius:50%;background:var(--panel)}
+  .ring .rv{position:relative;text-align:center;line-height:1.15}
+  .ring .rv b{font-size:23px;display:block}
+  .ring .rv span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .hero .barwrap{height:9px;border-radius:999px;background:var(--panel3);overflow:hidden;margin:2px 0 8px}
+  .hero .barwrap i{display:block;height:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  @media(max-width:620px){.hero{padding:18px;gap:18px}.ring{width:96px;height:96px}
+    .ring::before{width:74px;height:74px}.ring .rv b{font-size:19px}}
   /* header */
   header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
     padding-block:12px;padding-inline:max(var(--gutter),calc((100% - var(--maxw))/2));
@@ -78,20 +131,20 @@
     border-bottom:1px solid var(--line);flex-wrap:wrap}
   .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:.2px}
   .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--indigo));
-    display:grid;place-items:center;font-size:16px;box-shadow:0 4px 14px rgba(45,212,191,.35)}
+    display:grid;place-items:center;font-size:16px;box-shadow:var(--glow)}
   .brand span{color:var(--accent)}
   .spacer{flex:1}
   .lvl-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;
     background:var(--panel2);border:1px solid var(--line);color:var(--accent2)}
   select,button,input{font:inherit;color:var(--text);background:var(--panel2);
     border:1px solid var(--line);border-radius:10px;padding:8px 12px;outline:none;transition:.15s}
-  select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(45,212,191,.15)}
+  select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,108,246,.20)}
   button{cursor:pointer}
   button:hover{border-color:var(--accent);background:var(--panel3);transform:translateY(-1px)}
   button:active{transform:translateY(0)}
-  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--indigo));color:#04201c;border:none;
-    font-weight:700;box-shadow:0 4px 14px rgba(45,212,191,.22)}
-  .btn-primary:hover{filter:brightness(1.06);box-shadow:0 6px 20px rgba(45,212,191,.30)}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--indigo));color:#fff;border:none;
+    font-weight:700;box-shadow:var(--glow)}
+  .btn-primary:hover{filter:brightness(1.06);box-shadow:0 12px 30px rgba(124,108,246,.42)}
   .btn-danger{border-color:var(--bad);color:var(--bad)}
   .pill{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--panel2);color:var(--muted);
     display:inline-flex;align-items:center;gap:6px}
@@ -129,7 +182,7 @@
   .levels{display:flex;gap:8px;flex-wrap:wrap}
   .lv{flex:1;min-width:96px;text-align:center;padding:10px 8px;border-radius:11px;border:1px solid var(--line);
     background:var(--panel2);cursor:pointer;transition:.15s}
-  .lv:hover{border-color:var(--accent2)} .lv.active{border-color:var(--accent);background:#0f2b28;box-shadow:0 0 0 3px rgba(45,212,191,.12)}
+  .lv:hover{border-color:var(--accent2)} .lv.active{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px rgba(124,108,246,.18)}
   .lv .n{font-size:20px;font-weight:800} .lv .t{font-size:11px;color:var(--muted);margin-top:1px}
   /* skill bars */
   .skill{margin:10px 0} .skill .top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
@@ -148,7 +201,7 @@
   .msg .who{font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .mic{width:56px;height:56px;border-radius:50%;font-size:22px;display:grid;place-items:center;border:none;
-    background:linear-gradient(135deg,var(--accent),#0ea5a0);color:#052a25;box-shadow:0 6px 20px rgba(45,212,191,.4)}
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:var(--glow)}
   .mic.rec{background:linear-gradient(135deg,var(--bad),#dc2626);color:#fff;animation:pulse 1.2s infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.5)}50%{box-shadow:0 0 0 14px rgba(248,113,113,0)}}
   .banner{padding:11px 15px;border-radius:12px;background:#3b2f0b;border:1px solid #7c5e12;color:#fcd34d;font-size:13px;margin-bottom:16px}
@@ -157,7 +210,7 @@
   .chat-card .conv{flex:1;padding:18px;max-height:56vh;min-height:280px}
   .conv-empty{margin:auto;color:var(--dim);text-align:center;font-size:14px}
   .composer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid var(--line);
-    background:linear-gradient(180deg,transparent,rgba(45,212,191,.04))}
+    background:linear-gradient(180deg,transparent,rgba(124,108,246,.05))}
   .composer .mic{width:54px;height:54px;font-size:21px;flex:none}
   .composer-status{flex:1;min-width:0}
   .dots{display:inline-flex;gap:4px;margin-left:6px;vertical-align:middle}
@@ -203,8 +256,8 @@
     margin-top:14px;overflow-x:auto;padding-bottom:6px}
   .sq{width:12px;height:12px;border-radius:3px;background:var(--panel2);display:block}
   .sq.pad{background:transparent}
-  .sq.h0{background:var(--panel2)} .sq.h1{background:rgba(45,212,191,.30)}
-  .sq.h2{background:rgba(45,212,191,.52)} .sq.h3{background:rgba(45,212,191,.76)}
+  .sq.h0{background:var(--panel2)} .sq.h1{background:rgba(124,108,246,.32)}
+  .sq.h2{background:rgba(124,108,246,.56)} .sq.h3{background:rgba(124,108,246,.80)}
   .sq.h4{background:var(--accent)}
   .heat-legend .sq{display:inline-block;vertical-align:middle;margin:0 2px}
 
@@ -324,6 +377,8 @@
         first conversation. It takes about two minutes.</p>
       <button class="btn-primary" id="startFirst" style="padding:12px 22px">🎙️ Start your first conversation</button>
     </div>
+    <div class="hero hidden" id="dashHero"></div>
+    <div style="height:16px"></div>
     <!-- Level first: it decides the difficulty of everything below it, so it
          belongs above the numbers rather than buried between charts. -->
     <div class="card">
@@ -334,12 +389,12 @@
     <div class="grid tiles" id="tiles"></div>
     <div style="height:16px"></div>
     <div class="grid c2" id="dashCharts">
-      <div class="card"><h3>Skill radar</h3><canvas id="radar" width="470" height="360"></canvas></div>
+      <div class="card"><h3>Skill radar</h3><div id="radar" class="plot plot-radar"></div></div>
       <div class="card"><h3>Per-skill mastery</h3><div id="skills"></div></div>
     </div>
     <div style="height:16px"></div>
     <div class="grid c2" id="dashTrend">
-      <div class="card"><h3>Overall trend</h3><canvas id="trend" width="470" height="300"></canvas></div>
+      <div class="card"><h3>Overall trend</h3><div id="trend" class="plot"></div></div>
       <div class="card"><h3>Study plan</h3><div id="plan"></div></div>
     </div>
     <div style="height:16px"></div>
@@ -678,7 +733,12 @@ const api={
 };
 const DIMS=["pronunciation","grammar","vocabulary","listening","fluency","confidence","coherence","relevance"];
 const LEVELS=["Beginner","Intermediate","Advanced","Professional","Fluent","Native-like"];
-const SKILL_COLORS={pronunciation:'#2dd4bf',grammar:'#818cf8',vocabulary:'#f472b6',listening:'#60a5fa',fluency:'#34d399',confidence:'#fbbf24',coherence:'#a78bfa',relevance:'#fb923c'};
+// Read from the stylesheet so a skill is the same colour in its card, its
+// progress bar and its bar in the chart — and so the light theme's darker
+// variants apply without a second table here.
+function skillColor(k){const v=getComputedStyle(document.documentElement)
+  .getPropertyValue('--sk-'+k).trim();return v||cssVar('--accent');}
+const SKILL_COLORS=new Proxy({},{get:(_,k)=>skillColor(String(k))});
 let currentUser=null, currentUserName='', currentLevel=0, topic='', currentStreak=0;
 
 // --- auth ------------------------------------------------------------------
@@ -796,6 +856,13 @@ $('#newUserBtn').addEventListener('click',async()=>{const id=prompt('Learner id 
 $('#seedBtn').addEventListener('click',async()=>{if(!currentUser)return alert('Select a learner');try{await api.post(`/dev/users/${currentUser}/seed-demo`);await refreshUsers();}catch(e){alert(e.message);}});
 
 // tabs
+// Switching by clicking the nav button rather than duplicating the show/hide
+// logic: one place decides what a tab change means, and the button's active
+// state cannot drift from the panel that is showing.
+function go(tab){const b=document.querySelector(`nav button[data-tab="${tab}"]`);if(b)b.click();}
+// The empty state's call to action had no handler at all — it looked like the
+// way in and did nothing.
+$('#startFirst').addEventListener('click',()=>go('practice'));
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
   ['dash','practice','reading','convos','report','monitor','admin'].forEach(t=>$('#'+t).classList.toggle('hidden',t!==b.dataset.tab));
@@ -1447,6 +1514,32 @@ function showDashSkeleton(){
   const radar=$('#radar'), trend=$('#trend');
   if(radar&&!radar.dataset.skel){radar.dataset.skel='1';}
 }
+// The hero reads the same numbers as the tiles below it. It exists because a
+// column of four equal tiles gives the eye nowhere to land first — the greeting,
+// the ring and one button do.
+function renderHero(ov,fresh){
+  const el=$('#dashHero'); if(!el)return;
+  el.classList.toggle('hidden',fresh);     // nothing to celebrate before the first score
+  if(fresh)return;
+  const pct=ov.latest_overall!=null?Math.round(ov.latest_overall):0;
+  const next=ov.next_level, eta=ov.estimated_days_to_next_level;
+  const name=esc((currentUserName||'').split(' ')[0]||'there');
+  const line=next!=null
+    ? `${Math.max(0,100-pct)}% to go until level ${next}${eta!=null?` · about ${eta} day${eta===1?'':'s'} at this pace`:''}`
+    : 'You are at the top level — keep it sharp.';
+  el.innerHTML=`
+    <div class="grow">
+      <h2>Hello ${name} 👋</h2>
+      <p class="sub">Level ${ov.current_level} · ${esc(LEVELS[ov.current_level])} · ${ov.streak_days}-day streak</p>
+      <div class="barwrap"><i style="width:${pct}%"></i></div>
+      <p class="sub" style="margin:0 0 14px">${line}</p>
+      <button class="btn-primary cta" id="heroStart">🎙️ Continue practising</button>
+    </div>
+    <div class="ring" style="--p:${pct}" role="img" aria-label="Overall score ${pct} percent">
+      <div class="rv"><b>${pct}%</b><span>overall</span></div>
+    </div>`;
+  const b=$('#heroStart'); if(b)b.addEventListener('click',()=>go('practice'));
+}
 async function renderDashboard(){
   if(!currentUser){$('#tiles').innerHTML='';return;}
   showDashSkeleton();
@@ -1476,6 +1569,7 @@ async function renderDashboard(){
     {l:'To next level',v:eta!=null?eta+'d':'—',s:ov.next_level!=null?'reach level '+ov.next_level:'top level'},
 
   ].map(t=>`<div class="card tile"><div class="l">${t.l}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join('');
+  renderHero(ov,fresh);
   drawRadar('radar',ov.latest_scores||{});drawTrend('trend',trend);renderSkills(ov.latest_scores||{});renderPlan(plan);
   $('#assessTable').innerHTML=`<tr><th>when</th><th>overall</th>${DIMS.map(d=>`<th>${d.slice(0,4)}</th>`).join('')}</tr>`+
     assess.slice(-12).reverse().map(a=>`<tr><td class="muted">${fmtDate(a.created_at)}</td><td><b>${a.overall!=null?Math.round(a.overall):'—'}</b></td>`+
@@ -1514,25 +1608,74 @@ document.querySelectorAll('[data-fmt]').forEach(b=>b.addEventListener('click',()
 // charts
 function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function fmtDate(iso){try{return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'});}catch{return iso.slice(0,10);}}
-function drawRadar(id,scores){const c=$('#'+id),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
-  const cx=W/2,cy=H/2+6,R=Math.min(W,H)/2-50,n=DIMS.length;
-  for(let r=1;r<=4;r++){x.beginPath();for(let i=0;i<=n;i++){const a=-Math.PI/2+i*2*Math.PI/n,rr=R*r/4;const px=cx+rr*Math.cos(a),py=cy+rr*Math.sin(a);i?x.lineTo(px,py):x.moveTo(px,py);}x.strokeStyle=C.grid();x.stroke();}
-  x.font='11px system-ui';for(let i=0;i<n;i++){const a=-Math.PI/2+i*2*Math.PI/n,px=cx+R*Math.cos(a),py=cy+R*Math.sin(a);
-    x.strokeStyle=C.grid();x.beginPath();x.moveTo(cx,cy);x.lineTo(px,py);x.stroke();
-    x.fillStyle=C.label();x.textAlign=Math.abs(Math.cos(a))<0.3?'center':(Math.cos(a)>0?'left':'right');x.fillText(DIMS[i].slice(0,5),px+8*Math.cos(a),py+8*Math.sin(a)+3);}
-  x.beginPath();for(let i=0;i<=n;i++){const d=DIMS[i%n],v=(scores[d]??0)/100,a=-Math.PI/2+i*2*Math.PI/n,rr=R*v;const px=cx+rr*Math.cos(a),py=cy+rr*Math.sin(a);i?x.lineTo(px,py):x.moveTo(px,py);}
-  x.closePath();const g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,'rgba(45,212,191,.35)');g.addColorStop(1,'rgba(129,140,248,.35)');
-  x.fillStyle=g;x.fill();x.strokeStyle=C.accent();x.lineWidth=2;x.stroke();x.lineWidth=1;}
-function drawTrend(id,pts){const c=$('#'+id),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
-  const P={l:36,r:14,t:14,b:26},w=W-P.l-P.r,h=H-P.t-P.b;x.font='11px system-ui';x.textAlign='right';
-  for(let g=0;g<=4;g++){const y=P.t+h*g/4;x.strokeStyle=C.grid();x.beginPath();x.moveTo(P.l,y);x.lineTo(P.l+w,y);x.stroke();x.fillStyle=C.label();x.fillText(100-g*25,P.l-6,y+3);}
-  if(!pts||!pts.length){x.textAlign='center';x.fillStyle=C.dim();x.fillText('no data',W/2,H/2);return;}
-  const xs=i=>P.l+(pts.length===1?w/2:w*i/(pts.length-1)),ys=v=>P.t+h*(1-v/100);
-  const g=x.createLinearGradient(0,P.t,0,P.t+h);g.addColorStop(0,'rgba(129,140,248,.35)');g.addColorStop(1,'rgba(129,140,248,0)');
-  x.beginPath();pts.forEach((p,i)=>{const px=xs(i),py=ys(p.value);i?x.lineTo(px,py):x.moveTo(px,py);});
-  x.lineTo(xs(pts.length-1),P.t+h);x.lineTo(xs(0),P.t+h);x.closePath();x.fillStyle=g;x.fill();
-  x.strokeStyle=C.accent2();x.lineWidth=2.5;x.beginPath();pts.forEach((p,i)=>{const px=xs(i),py=ys(p.value);i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();x.lineWidth=1;
-  x.fillStyle=C.accent();pts.forEach((p,i)=>{x.beginPath();x.arc(xs(i),ys(p.value),3.2,0,7);x.fill();});}
+// --- charts -----------------------------------------------------------------
+// Plotly, so a learner can hover a point and read the exact score instead of
+// squinting at a pixel. Every colour is read from the stylesheet at draw time:
+// that is what keeps the charts in step with the theme toggle.
+const PLOT_CFG={responsive:true,displaylogo:false,displayModeBar:false};
+function plotBase(){
+  return {paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',
+    font:{color:C.label(),family:'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',size:11.5},
+    // dragmode false on purpose: Plotly's drag-to-zoom swallows touchmove, and a
+    // chart that eats the scroll gesture strands a phone user mid-page.
+    dragmode:false,hoverlabel:{bgcolor:cssVar('--panel2'),bordercolor:cssVar('--line'),
+      font:{color:cssVar('--text'),size:12}}};
+}
+async function plotReady(el){
+  await window.__plotly;
+  if(window.Plotly)return true;
+  if(el)el.innerHTML='<span class="muted">Charts are unavailable — the plotting bundle did not load.</span>';
+  return false;
+}
+// The radar is drawn in cartesian space rather than with a polar subplot: the
+// basic Plotly bundle is 1.1MB and has no scatterpolar, the full one is 4.9MB,
+// and learners open this over a tunnel on a phone. The maths is eight lines.
+async function drawRadar(id,scores){
+  const el=$('#'+id); if(!el||!await plotReady(el))return;
+  const n=DIMS.length,ang=i=>-Math.PI/2+i*2*Math.PI/n;
+  const xs=[],ys=[],txt=[],cols=[];
+  for(let i=0;i<=n;i++){const d=DIMS[i%n],v=Math.max(0,Math.min(100,scores[d]??0))/100;
+    xs.push(v*Math.cos(ang(i)));ys.push(v*Math.sin(ang(i)));
+    txt.push(`${d} — ${Math.round((scores[d]??0))}%`);cols.push(SKILL_COLORS[d]);}
+  const rings=[],spokes=[];
+  for(const r of [0.25,0.5,0.75,1]) rings.push({type:'circle',xref:'x',yref:'y',
+    x0:-r,y0:-r,x1:r,y1:r,line:{color:C.grid(),width:1}});
+  for(let i=0;i<n;i++) spokes.push({type:'line',x0:0,y0:0,x1:Math.cos(ang(i)),y1:Math.sin(ang(i)),
+    line:{color:C.grid(),width:1}});
+  const labels=DIMS.map((d,i)=>({x:1.17*Math.cos(ang(i)),y:1.17*Math.sin(ang(i)),text:d.slice(0,5),
+    showarrow:false,font:{color:C.label(),size:11}}));
+  const layout=Object.assign(plotBase(),{
+    margin:{l:10,r:10,t:10,b:10},showlegend:false,shapes:rings.concat(spokes),annotations:labels,
+    xaxis:{visible:false,range:[-1.38,1.38],fixedrange:true},
+    yaxis:{visible:false,range:[-1.32,1.32],fixedrange:true,scaleanchor:'x'}});
+  await Plotly.react(el,[{x:xs,y:ys,type:'scatter',mode:'lines+markers',fill:'toself',
+    fillcolor:hexA(C.accent(),.22),line:{color:C.accent(),width:2,shape:'linear'},
+    marker:{size:7,color:cols,line:{color:cssVar('--panel'),width:1.5}},
+    text:txt,hoverinfo:'text',hoveron:'points'}],layout,PLOT_CFG);
+}
+async function drawTrend(id,pts){
+  const el=$('#'+id); if(!el||!await plotReady(el))return;
+  if(!pts||!pts.length){el.innerHTML='<span class="muted">No assessments yet — your trend appears after your first one.</span>';return;}
+  const x=pts.map(p=>p.created_at),y=pts.map(p=>Math.round(p.value));
+  const layout=Object.assign(plotBase(),{
+    margin:{l:34,r:14,t:10,b:34},showlegend:false,hovermode:'x unified',
+    xaxis:{gridcolor:'rgba(0,0,0,0)',linecolor:C.grid(),tickformat:'%b %d',fixedrange:true,
+      tickfont:{color:C.dim()}},
+    yaxis:{range:[0,100],gridcolor:C.grid(),zeroline:false,fixedrange:true,
+      ticksuffix:'%',tickfont:{color:C.dim()}}});
+  await Plotly.react(el,[{x,y,type:'scatter',mode:'lines+markers',fill:'tozeroy',
+    fillcolor:hexA(C.accent2(),.16),line:{color:C.accent2(),width:2.5,shape:'spline',smoothing:.6},
+    marker:{size:6,color:C.accent(),line:{color:cssVar('--panel'),width:1.5}},
+    hovertemplate:'%{y}%<extra>overall</extra>'}],layout,PLOT_CFG);
+}
+// #rrggbb -> rgba(). Plotly wants a colour string, the stylesheet gives hex, and
+// the fills need transparency the token itself must not carry.
+function hexA(hex,a){
+  const h=(hex||'').trim().replace('#','');
+  if(h.length!==6)return hex;
+  const n=parseInt(h,16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
 
 // practice / topics
 function renderChips(list){$('#topicChips').innerHTML=list.map(t=>`<span class="chip" data-t="${esc(t)}">${esc(t)}</span>`).join('');

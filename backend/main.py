@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocket
 
 from backend.api import admin as admin_router
@@ -218,6 +219,10 @@ _OPEN_PATHS = (
     "/docs",
     "/redoc",
     "/openapi.json",
+    # The charting library the UI loads. It is a static asset served before
+    # anyone can possibly be signed in — the login screen draws nothing, but the
+    # browser fetches the page's scripts either way.
+    "/vendor",
 )
 
 
@@ -301,6 +306,14 @@ app.include_router(dev_router.router)
 
 
 _FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
+
+# Third-party browser assets, vendored into the repo rather than pulled from a
+# CDN: this box has no internet at runtime, and a chart that only draws when
+# unpkg.com is reachable is not a chart. Long-lived cache headers because the
+# filename carries the version — a new Plotly is a new filename.
+_VENDOR = _FRONTEND.parent / "vendor"
+if _VENDOR.is_dir():
+    app.mount("/vendor", StaticFiles(directory=_VENDOR), name="vendor")
 
 
 @app.get("/", include_in_schema=False)
