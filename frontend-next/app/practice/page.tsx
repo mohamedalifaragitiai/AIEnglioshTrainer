@@ -48,7 +48,7 @@ export default function Practice() {
               key={t}
               onClick={() => setTopic(t)}
               className={`text-[12.5px] px-3 py-1.5 rounded-full border ${
-                topic === t ? "bg-[#0f2b28] border-accent text-accent" : "border-line bg-panel2"
+                topic === t ? "bg-accent/10 border-accent text-accent" : "border-line bg-panel2"
               }`}
             >
               {t}

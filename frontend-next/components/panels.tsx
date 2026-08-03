@@ -30,7 +30,7 @@ export function GapsPanel({ gaps }: { gaps: GapItem[] }) {
               className="h-full"
               style={{
                 width: `${g.score}%`,
-                background: "linear-gradient(90deg,#f87171,#34d399)",
+                background: "linear-gradient(90deg,rgb(var(--c-bad)),rgb(var(--c-good)))",
               }}
             />
           </div>

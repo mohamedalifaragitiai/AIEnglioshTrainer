@@ -202,7 +202,11 @@ def render_pdf(data: ReportData) -> bytes:
     W, H = A4
     M = 2 * cm
     y = H - 1.6 * cm
-    teal, ink, grey = (0.09, 0.55, 0.5), (0.12, 0.16, 0.24), (0.42, 0.47, 0.55)
+    # The report is the one artefact that leaves this machine, so it carries
+    # the same violet as the app rather than a colour of its own. Values are
+    # the light theme's accent (#5b46e0) — on white paper the dark theme's
+    # lighter violet is barely there.
+    brand, ink, grey = (0.357, 0.275, 0.878), (0.06, 0.08, 0.16), (0.42, 0.47, 0.55)
 
     def text(s, size=10.5, dy=0.52 * cm, bold=False, color=ink, indent=0.0):
         nonlocal y
@@ -215,7 +219,7 @@ def render_pdf(data: ReportData) -> bytes:
     def heading(s):
         nonlocal y
         y -= 0.15 * cm
-        c.setFillColorRGB(*teal)
+        c.setFillColorRGB(*brand)
         c.rect(M, y - 0.05 * cm, 0.28 * cm, 0.42 * cm, fill=1, stroke=0)
         c.setFillColorRGB(*ink)
         c.setFont("Helvetica-Bold", 12.5)
@@ -232,13 +236,13 @@ def render_pdf(data: ReportData) -> bytes:
         bx, bw = M + 3.2 * cm, W - 2 * M - 4.6 * cm
         c.setFillColorRGB(0.86, 0.89, 0.94)
         c.roundRect(bx, y - 0.05 * cm, bw, 0.28 * cm, 0.14 * cm, fill=1, stroke=0)
-        c.setFillColorRGB(*teal)
+        c.setFillColorRGB(*brand)
         c.roundRect(bx, y - 0.05 * cm, max(0.14 * cm, bw * pct / 100), 0.28 * cm,
                     0.14 * cm, fill=1, stroke=0)
         y -= 0.56 * cm
 
     # header band
-    c.setFillColorRGB(*teal)
+    c.setFillColorRGB(*brand)
     c.rect(0, H - 1.15 * cm, W, 1.15 * cm, fill=1, stroke=0)
     c.setFillColorRGB(1, 1, 1)
     c.setFont("Helvetica-Bold", 15)
@@ -246,7 +250,10 @@ def render_pdf(data: ReportData) -> bytes:
     y = H - 1.9 * cm
 
     text(f"{ov.display_name}", 15, 0.5 * cm, bold=True)
-    text(f"Level {ov.current_level}/5 — {level_name(ov.current_level)}", 11.5, 0.5 * cm, color=teal)
+    text(
+        f"Level {ov.current_level}/5 — {level_name(ov.current_level)}",
+        11.5, 0.5 * cm, color=brand,
+    )
     overall = round(ov.latest_overall) if ov.latest_overall is not None else "-"
     nxt = next_level_line(ov.next_level, ov.estimated_days_to_next_level)
     text(f"Overall {overall}%   ·   Streak {ov.streak_days} days   ·   {ov.assessments_count} "

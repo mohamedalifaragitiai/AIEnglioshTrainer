@@ -79,8 +79,10 @@ export function Header() {
       <header className="border-b border-line bg-panel">
         <div className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] py-3">
           <div className="flex items-center justify-between">
-            <h1 className="text-lg font-semibold">
-              AI English <span className="text-accent">Coach</span>
+            <h1 className="text-lg font-semibold flex items-center gap-2.5">
+  <span className="brand-mark" aria-hidden="true">AI</span>
+                <span className="brand-mark" aria-hidden="true">AI</span>
+          AI English <span className="text-accent">Coach</span>
             </h1>
             <ThemeToggle />
           </div>
@@ -92,7 +94,7 @@ export function Header() {
   return (
     <header className="border-b border-line bg-panel">
       <div className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] flex items-center gap-4 py-3 flex-wrap">
-        <h1 className="text-lg font-semibold">
+        <h1 className="text-lg font-semibold flex items-center gap-2.5">
           AI English <span className="text-accent">Coach</span>
         </h1>
         {isAdmin && version && <span className="pill bg-panel2 text-muted">v{version}</span>}

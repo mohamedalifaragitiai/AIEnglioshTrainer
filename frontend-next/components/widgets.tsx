@@ -92,7 +92,7 @@ export function Gauge({
     <div className="card flex flex-col items-center gap-1.5">
       <div className="relative w-28 h-28">
         <svg width="112" height="112" className="-rotate-90">
-          <circle cx="56" cy="56" r="44" fill="none" stroke="#26375a" strokeWidth="10" />
+          <circle cx="56" cy="56" r="44" fill="none" stroke="rgb(var(--c-panel3))" strokeWidth="10" />
           <circle
             cx="56"
             cy="56"

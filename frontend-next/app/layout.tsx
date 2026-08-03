@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { UserProvider } from "./user-context";
 import { Header } from "@/components/Header";
@@ -8,6 +8,29 @@ import { LevelGate } from "@/components/LevelGate";
 export const metadata: Metadata = {
   title: "AI English Coach",
   description: "Offline AI English speaking & listening coach dashboard.",
+  // The brand mark, inline rather than a file: one fewer request and it cannot
+  // go missing. Same glyph as the served UI's tab icon, so the two front-ends
+  // look like one product in a row of browser tabs.
+  icons: {
+    icon: [
+      {
+        url:
+          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E" +
+          "%3Crect width='64' height='64' rx='16' fill='%237c6cf6'/%3E" +
+          "%3Cpath d='M20 44V20h6l6 12 6-12h6v24h-6V31l-6 11-6-11v13z' fill='white'/%3E%3C/svg%3E",
+        type: "image/svg+xml",
+      },
+    ],
+  },
+};
+
+// The phone's browser chrome takes these: on Android the address bar becomes
+// part of the app rather than a grey frame around it.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#080b16" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f5fb" },
+  ],
 };
 
 // Runs before first paint, ahead of React hydrating. Setting the theme from an

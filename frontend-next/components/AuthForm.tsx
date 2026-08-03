@@ -41,7 +41,17 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   };
 
   return (
-    <div className="max-w-sm mx-auto mt-16">
+    <div className="max-w-sm mx-auto mt-16 card !p-7" style={{
+      background:
+        "radial-gradient(120% 150% at 100% 0%, rgba(124,108,246,0.22), transparent 62%), rgb(var(--c-panel))",
+    }}>
+      <div className="flex items-center gap-3 mb-5">
+        <span className="brand-mark" aria-hidden="true">AI</span>
+        <span>
+          <b className="block text-[15px] leading-tight">AI English Coach</b>
+          <span className="block text-muted text-xs">practice that stays on your machine</span>
+        </span>
+      </div>
       <h2 className="text-xl font-semibold mb-1">
         {isSignup ? "Create your account" : "Sign in"}
       </h2>

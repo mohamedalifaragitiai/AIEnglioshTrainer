@@ -42,7 +42,9 @@ export default function Monitor() {
                   className="w-6 h-2 rounded"
                   style={{
                     background:
-                      s.degradation_level > i ? DEG_COLORS[Math.min(s.degradation_level, 4)] : "#293a5a",
+                      s.degradation_level > i
+                        ? DEG_COLORS[Math.min(s.degradation_level, 4)]
+                        : "rgb(var(--c-panel3))",
                   }}
                 />
               ))}

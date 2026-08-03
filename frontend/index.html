@@ -3,6 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- The phone's browser chrome takes this colour: on Android the address bar
+     and task-switcher card become part of the app instead of framing it in
+     grey. Two values so a light-theme user does not get a black bar. -->
+<meta name="theme-color" content="#080b16" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#f4f5fb" media="(prefers-color-scheme: light)" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="description" content="AI English Coach — speaking and reading practice that runs entirely on your own machine." />
+<!-- The tab icon is the brand mark, inline: a separate file is another request
+     and another thing to lose, and this one is 300 bytes. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%237c6cf6'/%3E%3Cpath d='M20 44V20h6l6 12 6-12h6v24h-6V31l-6 11-6-11v13z' fill='white'/%3E%3C/svg%3E" />
 <title>AI English Coach</title>
 <!-- Charts. Vendored, not from a CDN: this box has no internet at runtime.
      onerror resolves too — a missing bundle must degrade to "no chart", never
@@ -76,7 +87,12 @@
     font:14.5px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-thumb{background:var(--panel3);border-radius:8px}
+  ::selection{background:color-mix(in srgb, var(--accent) 40%, transparent);color:var(--text)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--panel3);border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb, var(--accent) 55%, var(--panel3))}
+  /* Firefox has no ::-webkit-scrollbar; this is the same intent in one line. */
+  html{scrollbar-color:var(--panel3) transparent}
   a{color:inherit}
   /* Keyboard users had nothing to follow: the browser default outline was being
      suppressed by the reset on buttons and inputs. :focus-visible keeps it off
@@ -130,8 +146,9 @@
     background:var(--glass);backdrop-filter:blur(10px);
     border-bottom:1px solid var(--line);flex-wrap:wrap}
   .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:.2px}
-  .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--indigo));
-    display:grid;place-items:center;font-size:16px;box-shadow:var(--glow)}
+  .logo{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;font-size:13px;font-weight:800;letter-spacing:.5px;color:#fff;
+    box-shadow:var(--glow)}
   .brand span{color:var(--accent)}
   .spacer{flex:1}
   .lvl-badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;
@@ -192,11 +209,12 @@
   /* practice */
   .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
   .chip{font-size:12.5px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
-  .chip:hover{border-color:var(--accent)} .chip.active{background:#0f2b28;border-color:var(--accent);color:var(--accent)}
+  .chip:hover{border-color:var(--accent)} .chip.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
   .conv{display:flex;flex-direction:column;gap:11px;min-height:230px;max-height:46vh;overflow-y:auto;padding:6px}
   .msg{padding:11px 15px;border-radius:14px;max-width:80%;white-space:pre-wrap;animation:pop .18s ease}
   @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
-  .msg.user{align-self:flex-end;background:linear-gradient(135deg,#1e3a8a55,#243b73);border:1px solid #3b5bdb66}
+  .msg.user{align-self:flex-end;background:linear-gradient(135deg,rgba(124,108,246,.22),rgba(79,141,247,.20));
+    border:1px solid rgba(124,108,246,.40)}
   .msg.coach{align-self:flex-start;background:var(--panel2);border:1px solid var(--line)}
   .msg .who{font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:600}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -204,7 +222,9 @@
     background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:var(--glow)}
   .mic.rec{background:linear-gradient(135deg,var(--bad),#dc2626);color:#fff;animation:pulse 1.2s infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.5)}50%{box-shadow:0 0 0 14px rgba(248,113,113,0)}}
-  .banner{padding:11px 15px;border-radius:12px;background:#3b2f0b;border:1px solid #7c5e12;color:#fcd34d;font-size:13px;margin-bottom:16px}
+  .banner{padding:11px 15px;border-radius:12px;background:var(--warn-bg);
+    border:1px solid color-mix(in srgb, var(--warn) 45%, transparent);color:var(--warn);
+    font-size:13px;margin-bottom:16px}
   /* voice chat composer */
   .chat-card{padding:0;display:flex;flex-direction:column;overflow:hidden}
   .chat-card .conv{flex:1;padding:18px;max-height:56vh;min-height:280px}
@@ -322,11 +342,19 @@
   .modal{background:var(--panel);border:1px solid var(--line);
     border-radius:18px;padding:30px 34px;max-width:430px;width:calc(100% - 40px);text-align:center;
     box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  /* The gate gets the hero's wash: the first screen should look like the app,
+     not like a password prompt that happens to precede it. */
+  .auth-modal{background:
+      radial-gradient(120% 150% at 100% 0%, rgba(124,108,246,.22), transparent 62%),
+      var(--panel)}
+  .auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:18px}
+  .auth-brand b{display:block;font-size:15px;line-height:1.25}
+  .auth-brand span{display:block;color:var(--muted);font-size:12px}
   .modal h3{margin:0 0 8px;font-size:19px}
   .modal p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55}
   .modal .actions{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
   .modal .primary{background:linear-gradient(135deg,var(--accent),var(--indigo));border:none;
-    color:#04121a;font-weight:700;padding:11px 20px;border-radius:11px}
+    color:#fff;font-weight:700;padding:11px 20px;border-radius:11px;box-shadow:var(--glow)}
   .spinner{width:42px;height:42px;margin:6px auto 18px;border-radius:50%;
     border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -334,7 +362,7 @@
 </head>
 <body>
 <header>
-  <div class="brand"><div class="logo">🎓</div>AI English <span>&nbsp;Coach</span></div>
+  <div class="brand"><div class="logo" aria-hidden="true">AI</div>AI English <span>&nbsp;Coach</span></div>
   <span class="lvl-badge" id="lvlBadge">Level —</span>
   <!-- Operational chrome: interesting to whoever runs the box, noise to a
        learner. boot() reveals both only for an admin. -->
@@ -672,7 +700,9 @@
 <!-- Sign-in gate. Only ever shown when the server reports auth_required and this
      browser has no valid session; with auth off it never appears. -->
 <div id="authGate" class="modal-back hidden">
-  <div class="modal" style="text-align:left">
+  <div class="modal auth-modal" style="text-align:left">
+    <div class="auth-brand"><div class="logo" aria-hidden="true">AI</div>
+      <div><b>AI English Coach</b><span>practice that stays on your machine</span></div></div>
     <h3 id="authTitle">Sign in</h3>
     <p id="authIntro">Your profile, history and scores stay on this machine.</p>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px">
@@ -1910,7 +1940,7 @@ async function pollStats(){let s;try{s=await api.get('/stats');}catch{return;}
   gauges.forEach(g=>drawGauge('g_'+g.k,g.v));
   // degradation ladder
   const lvl=s.degradation_level;const cols=['#34d399','#fbbf24','#fb923c','#f87171','#ef4444'];
-  $('#degBar').innerHTML=[0,1,2,3].map(i=>`<i style="background:${lvl>i?cols[Math.min(lvl,4)]:'#293a5a'}"></i>`).join('');
+  $('#degBar').innerHTML=[0,1,2,3].map(i=>`<i style="background:${lvl>i?cols[Math.min(lvl,4)]:cssVar('--panel3')}"></i>`).join('');
   $('#degTxt').textContent='level '+lvl+(lvl===0?' (normal)':'');
   $('#modelsTable').innerHTML=`<tr><th>model</th><th>kind</th><th>status</th><th>VRAM</th></tr>`+
     (s.models||[]).map(m=>`<tr><td>${esc(m.name)}</td><td class="muted">${m.kind}</td><td>${statusPill(m.status)}</td><td class="muted">${m.vram_gb} GB</td></tr>`).join('');
@@ -1921,7 +1951,7 @@ function gaugeHTML(k,v,sub){const p=v==null?'—':Math.round(v*100)+'%';
   return `<div class="card gauge"><div class="gwrap"><canvas id="g_${k}" width="120" height="120"></canvas><div class="gtxt"><div class="p">${p}</div><div class="u">${sub}</div></div></div><div class="glabel">${k}</div></div>`;}
 function drawGauge(id,v){const c=$('#'+id);if(!c)return;const x=c.getContext('2d'),W=120,H=120,cx=60,cy=60,r=48;x.clearRect(0,0,W,H);
   x.lineWidth=11;x.strokeStyle=C.grid();x.beginPath();x.arc(cx,cy,r,0,2*Math.PI);x.stroke();
-  const val=v==null?0:Math.max(0,Math.min(1,v));const col=val>0.96?'#ef4444':val>0.88?'#fb923c':val>0.7?'#fbbf24':'#2dd4bf';
+  const val=v==null?0:Math.max(0,Math.min(1,v));const col=val>0.96?'#ef4444':val>0.88?'#fb923c':val>0.7?'#fbbf24':cssVar('--accent');
   x.strokeStyle=col;x.lineCap='round';x.beginPath();x.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+val*2*Math.PI);x.stroke();}
 
 boot();

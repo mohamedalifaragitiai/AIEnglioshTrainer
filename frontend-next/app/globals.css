@@ -72,6 +72,14 @@
 /* Keyboard users had nothing to follow: the reset suppresses the default
    outline on buttons and inputs. :focus-visible keeps it off the mouse path
    while putting it back for the keyboard. */
+::selection {
+  background: color-mix(in srgb, rgb(var(--c-accent)) 40%, transparent);
+  color: rgb(var(--c-text));
+}
+html {
+  scrollbar-color: rgb(var(--c-panel3)) transparent;
+}
+
 :focus-visible {
   outline: 2px solid rgb(var(--c-accent));
   outline-offset: 2px;
@@ -98,6 +106,16 @@ body {
 @layer components {
   /* The one lit surface on the page. Everything else is a flat panel, so the
      violet wash here reads as "start", not as decoration. */
+  /* The brand mark: the same tile as the tab icon and the served UI's header. */
+  .brand-mark {
+    @apply grid place-items-center rounded-[10px] text-white font-extrabold shrink-0;
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, rgb(var(--c-accent)), rgb(var(--c-accent2)));
+    box-shadow: var(--glow);
+  }
   .hero {
     @apply relative overflow-hidden rounded-2xl border border-line p-6 shadow-sm
       flex items-center gap-6 flex-wrap;

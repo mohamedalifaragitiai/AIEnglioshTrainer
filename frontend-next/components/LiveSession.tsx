@@ -357,7 +357,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           className={`w-14 h-14 rounded-full grid place-items-center text-xl border-none transition ${
             state === "recording"
               ? "bg-gradient-to-br from-red-500 to-red-600 text-white animate-pulse"
-              : "bg-gradient-to-br from-accent to-teal-600 text-[#052a25]"
+              : "bg-gradient-to-br from-accent to-accent2 text-white shadow-[var(--glow)]"
           } ${state === "busy" ? "opacity-50" : ""}`}
           title="Tap to speak"
           aria-label="Tap to speak"
