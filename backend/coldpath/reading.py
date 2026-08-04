@@ -5,9 +5,14 @@ reference is unknown, so scoring is a judgement; here the target text is known
 exactly, which makes accuracy, omissions and insertions *countable* rather than
 estimated. That is the whole point of the exercise.
 
-Passages are curated per CEFR-ish level rather than generated. Three reasons:
-the app must work with the LLM server down, a reading test wants a stable
-reference so today's score is comparable to last week's, and a generated passage
+The passages here are the curated floor. Serving them and nothing else turned
+the exercise into a memory test — learners saw the same two texts repeatedly —
+so passage_gen.py now writes a fresh one per attempt and only falls back to
+this set when generation is off, failing, or the guard has paused cold work.
+
+The reasons these exist have not gone away, and they are what the generator is
+measured against: the app must work with the LLM server down, a reading score
+is only comparable week to week if the difficulty is, and a generated passage
 can quietly drift off-level in a way nobody notices.
 """
 

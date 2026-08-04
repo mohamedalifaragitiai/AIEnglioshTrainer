@@ -12,10 +12,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from backend.api.deps import Repositories, get_repos, require_access
-from backend.coldpath.reading import PASSAGES, passage_for, score_reading
+from backend.api.deps import Repositories, current_user_id, get_repos, require_access
+from backend.coldpath.passage_gen import SPECS, PassageService
+from backend.coldpath.reading import score_reading
 from backend.core.logging import get_logger
 from backend.persistence.repositories import ReadingRepository
+from config.settings import get_settings
 
 router = APIRouter(tags=["reading"])
 log = get_logger("reading")
@@ -29,20 +31,44 @@ class ReadingAttempt(BaseModel):
     title: str | None = Field(None, description="passage title, for the history list")
 
 
+def _passages(request: Request) -> PassageService:
+    """The generator, built once per process and kept on app state.
+
+    Lazily, because it needs the LLM client that startup wires up, and because a
+    process that never serves a reading request should never build a pool.
+    """
+    svc = getattr(request.app.state, "passage_service", None)
+    if svc is None:
+        svc = PassageService(
+            getattr(request.app.state, "llm_client", None),
+            getattr(request.app.state, "guard", None),
+            get_settings(),
+        )
+        request.app.state.passage_service = svc
+    return svc
+
+
 @router.get("/reading/passage")
-def reading_passage(level: int = 0, seed: str | None = None) -> dict:
-    """A passage at the requested level.
+async def reading_passage(request: Request, level: int = 0, seed: str | None = None) -> dict:
+    """A freshly written passage at the requested level.
+
+    Generated per request so nobody re-reads a text they have memorised, and
+    checked against a difficulty band for the level before it is served. When
+    generation is off, failing, or the guard has paused cold work, this falls
+    back to the curated passages — the exercise must not depend on a model
+    being free.
 
     Carries no learner data, but stays behind the ordinary session check when
     enforcement is on: there is no caller for it except a signed-in learner
     about to read, and a second exemption is a second thing to get wrong.
     """
-    if level < 0 or level > max(PASSAGES):
+    if level < 0 or level > max(SPECS):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"level must be between 0 and {max(PASSAGES)}",
+            f"level must be between 0 and {max(SPECS)}",
         )
-    return passage_for(level, seed=seed)
+    user_id = current_user_id(request)
+    return await _passages(request).get(level, user_id=user_id, seed=seed)
 
 
 @router.post("/users/{user_id}/reading/score")

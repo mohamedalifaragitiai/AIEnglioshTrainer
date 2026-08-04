@@ -142,6 +142,18 @@ class Settings(BaseSettings):
     tts_device: str = "cuda"
     tts_vram_gb: float = 0.3  # measured 0.23GB on RTX 5080
 
+    # --- Read-aloud passages -----------------------------------------------
+    # Generated per attempt so a learner is not re-reading the same text from
+    # memory. Off falls back to the curated set, which is also what happens when
+    # the LLM is unreachable or the box is under load.
+    reading_generate_passages: bool = True
+    # Kept warm ahead of the request: generation takes a second or two and the
+    # reading tab asks for a passage the moment it opens.
+    reading_passage_pool: int = Field(default=2, ge=0, le=8)
+    # Rejected candidates are cheap; an endless retry loop on a model having a
+    # bad day is not.
+    reading_passage_attempts: int = Field(default=3, ge=1, le=6)
+
     # --- Hot path (Phase 3) ------------------------------------------------
     hotpath_sample_rate: int = 16000
     hotpath_system_prompt: str = (
