@@ -30,7 +30,7 @@ export function ReadingSummary({ userId }: { userId: string }) {
   const last = data.attempts[0];
 
   return (
-    <div className="card">
+    <div className="card !p-5">
       <div className="flex justify-between items-baseline mb-3">
         <h2 className="font-semibold">Reading</h2>
         <Link href="/reading" className="btn text-xs">

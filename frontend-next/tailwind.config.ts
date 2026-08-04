@@ -23,6 +23,21 @@ const config: Config = {
         good: "rgb(var(--c-good) / <alpha-value>)",
         warn: "rgb(var(--c-warn) / <alpha-value>)",
         bad: "rgb(var(--c-bad) / <alpha-value>)",
+        // One step nearer the reader than `panel`. Elevation in a dark theme is
+        // lightness, not shadow.
+        elevated: "rgb(var(--c-elevated) / <alpha-value>)",
+        // The per-skill hues, so a component can say `text-skill-fluency`
+        // instead of reaching into a var() by hand.
+        skill: {
+          pronunciation: "var(--sk-pronunciation)",
+          fluency: "var(--sk-fluency)",
+          confidence: "var(--sk-confidence)",
+          grammar: "var(--sk-grammar)",
+          vocabulary: "var(--sk-vocabulary)",
+          listening: "var(--sk-listening)",
+          coherence: "var(--sk-coherence)",
+          relevance: "var(--sk-relevance)",
+        },
       },
     },
   },

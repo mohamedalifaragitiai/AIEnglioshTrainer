@@ -3,6 +3,7 @@ import "./globals.css";
 import { UserProvider } from "./user-context";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { Sidebar } from "@/components/Sidebar";
 import { LevelGate } from "@/components/LevelGate";
 
 export const metadata: Metadata = {
@@ -50,7 +51,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UserProvider>
           <Header />
           <LevelGate />
-          <main className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] py-6">{children}</main>
+          {/* Rail beside the content on desktop, bottom bar on phones. The
+              padding-bottom is for that bar: without it the last card sits
+              underneath the nav and looks cut off. */}
+          <div className="mx-auto w-full max-w-[1680px] flex">
+            <Sidebar />
+            <main className="flex-1 min-w-0 px-[clamp(14px,2.2vw,34px)] py-6 pb-24 lg:pb-6">
+              {children}
+            </main>
+          </div>
           <Footer />
         </UserProvider>
       </body>

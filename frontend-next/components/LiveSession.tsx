@@ -302,7 +302,7 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
           </div>
         ))}
       </div>
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3.5 px-3 sm:px-[18px] py-3 sm:py-3.5 border-t border-line bg-[linear-gradient(180deg,transparent,rgba(45,212,191,0.04))]">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3.5 px-3 sm:px-[18px] py-3 sm:py-3.5 border-t border-line bg-[linear-gradient(180deg,transparent,rgba(124,108,246,0.05))]">
         {/* Full width on a phone so the controls below it get a whole row. */}
         <div className="basis-full sm:basis-auto sm:flex-1 min-w-0 order-first">
           <div className="font-semibold">
@@ -354,11 +354,11 @@ export function LiveSession({ userId, topic }: { userId: string; topic: string }
             void onMic();
           }}
           disabled={state === "busy"}
-          className={`w-14 h-14 rounded-full grid place-items-center text-xl border-none transition ${
+          className={`w-16 h-16 rounded-full grid place-items-center text-xl border-none transition-all ${
             state === "recording"
-              ? "bg-gradient-to-br from-red-500 to-red-600 text-white animate-pulse"
-              : "bg-gradient-to-br from-accent to-accent2 text-white shadow-[var(--glow)]"
-          } ${state === "busy" ? "opacity-50" : ""}`}
+              ? "bg-gradient-to-br from-red-500 to-red-600 text-white ring-8 ring-red-500/20 scale-105"
+              : "bg-gradient-to-br from-accent to-accent2 text-white shadow-[var(--glow)] hover:scale-105"
+          } ${state === "busy" ? "opacity-50 cursor-not-allowed" : ""}`}
           title="Tap to speak"
           aria-label="Tap to speak"
         >

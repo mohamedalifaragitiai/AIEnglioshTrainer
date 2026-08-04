@@ -31,7 +31,7 @@ export function StreakHeatmap({ userId, currentStreak }: { userId: string; curre
   const pad = data.cells.length ? data.cells[0].weekday : 0;
 
   return (
-    <div className="card">
+    <div className="card !p-5">
       <div className="flex justify-between items-baseline flex-wrap gap-2">
         <h2 className="font-semibold">Practice streak</h2>
         <span className="text-muted text-xs">

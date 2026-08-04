@@ -32,6 +32,10 @@
   --sk-coherence: #06b6d4;
   --sk-relevance: #14b8a6;
   --glow: 0 10px 34px rgba(124, 108, 246, 0.3);
+  /* Elevation by lightness, not by shadow: a dark theme with drop shadows reads
+     as plastic. Each step is a surface one notch nearer the reader. */
+  --c-elevated: 22 26 36;
+  --grad-accent: linear-gradient(135deg, rgb(var(--c-accent)), rgb(var(--c-accent2)));
   --c-good: 52 211 153;
   --c-warn: 251 191 36;
   --c-bad: 248 113 113;
@@ -63,6 +67,8 @@
   --sk-coherence: #0e7490;
   --sk-relevance: #0f766e;
   --glow: 0 10px 30px rgba(91, 70, 224, 0.2);
+  --c-elevated: 248 249 253;
+  --grad-accent: linear-gradient(135deg, rgb(var(--c-accent)), rgb(var(--c-accent2)));
   --c-good: 5 150 105;
   --c-warn: 180 83 9;
   --c-bad: 220 38 38;
@@ -104,6 +110,95 @@ body {
 }
 
 @layer components {
+  /* --- typography scale -----------------------------------------------------
+     Four steps, used everywhere, so a heading is never "whatever looked right
+     in this component". Numbers outrank their labels on purpose: a score is
+     the thing being read, the caption only says what it is. */
+  .t-display {
+    @apply text-2xl sm:text-[28px] font-bold tracking-[-0.02em] leading-tight;
+  }
+  .t-section {
+    @apply text-[15px] font-semibold tracking-[-0.01em];
+  }
+  .t-stat {
+    @apply text-[26px] font-bold tabular-nums leading-none tracking-[-0.02em];
+  }
+  .t-label {
+    @apply text-[10.5px] font-semibold uppercase tracking-[0.09em] text-muted;
+  }
+  .t-caption {
+    @apply text-xs text-dim;
+  }
+
+  /* A soft-tinted square holding one coloured glyph. --tint is the metric's own
+     colour, so the badge, the bar and the chart all agree without a lookup. */
+  .icon-badge {
+    @apply grid place-items-center rounded-[11px] shrink-0;
+    width: 34px;
+    height: 34px;
+    color: var(--tint, rgb(var(--c-accent)));
+    background: color-mix(in srgb, var(--tint, rgb(var(--c-accent))) 16%, transparent);
+  }
+
+  /* Progress track + fill. The fill animates from zero on mount, which is what
+     makes a number feel earned rather than printed. */
+  .track {
+    @apply h-2 rounded-full overflow-hidden bg-panel3;
+  }
+  .track > i {
+    @apply block h-full rounded-full;
+    background: var(--tint, var(--grad-accent));
+    transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* Untested is a state, not an absence: a dashed track reads as "nothing here
+     yet" where an empty solid bar reads as "zero", which is a different and
+     much worse thing to tell someone. */
+  .track-empty {
+    @apply h-2 rounded-full;
+    border: 1px dashed rgb(var(--c-line));
+    background: repeating-linear-gradient(
+      90deg,
+      rgb(var(--c-panel3)) 0 6px,
+      transparent 6px 12px
+    );
+  }
+
+  .surface {
+    background: rgb(var(--c-elevated));
+  }
+
+  /* Sidebar nav item. Active is a filled block with an accent glyph; inactive is
+     muted until hovered. */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
+      text-muted transition-colors hover:text-fg hover:bg-panel2;
+  }
+  .nav-item[data-active="true"] {
+    @apply text-fg bg-panel2;
+    box-shadow: inset 2px 0 0 rgb(var(--c-accent));
+  }
+  .nav-item[data-active="true"] .icon-badge {
+    color: rgb(var(--c-accent));
+  }
+
+  .btn-ghost {
+    @apply bg-transparent border border-transparent text-muted hover:text-fg hover:bg-panel2;
+  }
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed hover:brightness-100;
+  }
+
+  /* The ring reads its own size, so one class serves the 118px hero ring and the
+     56px stat rings without a second rule. */
+  .ring {
+    width: var(--size, 118px);
+    height: var(--size, 118px);
+  }
+  .ring::before {
+    width: calc(var(--size, 118px) - 26px);
+    height: calc(var(--size, 118px) - 26px);
+  }
+
   /* The one lit surface on the page. Everything else is a flat panel, so the
      violet wash here reads as "start", not as decoration. */
   /* The brand mark: the same tile as the tab icon and the served UI's header. */
@@ -146,9 +241,6 @@ body {
     content: "";
     @apply absolute inset-x-0 top-0 h-px;
     background: linear-gradient(90deg, transparent, var(--hairline), transparent);
-  }
-  .card-title {
-    @apply text-xs uppercase tracking-wider text-muted font-semibold mb-3;
   }
   .btn {
     @apply bg-panel2 border border-line rounded-lg px-3 py-2 text-sm cursor-pointer

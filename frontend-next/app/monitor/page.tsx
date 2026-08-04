@@ -30,9 +30,14 @@ export default function Monitor() {
 
   return (
     <div className="space-y-4">
-      <div className="card">
+      <header className="pb-1">
+        <h1 className="t-display">Monitor</h1>
+        <p className="text-muted text-sm mt-1">What this machine is doing right now.</p>
+      </header>
+
+      <div className="card !p-5">
         <div className="flex justify-between items-center">
-          <div className="card-title mb-0">System — live utilization</div>
+          <div className="t-section">System — live utilization</div>
           <div className="flex items-center gap-2">
             <span className="text-muted text-xs">degradation</span>
             <div className="flex gap-1.5">
@@ -62,8 +67,8 @@ export default function Monitor() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Models</div>
+      <div className="card !p-5">
+        <div className="t-section mb-3">Models</div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

@@ -100,10 +100,15 @@ export default function ConversationsPage() {
   }, [currentUser]);
 
   if (!currentUser) return <div className="text-muted">Select a learner first.</div>;
-  if (error) return <div className="card text-muted">Could not load: {error}</div>;
+  if (error) return <div className="card !p-5 text-muted">Could not load: {error}</div>;
   if (!rows || !analysis)
     return (
       <div className="space-y-4">
+      <header className="pb-1">
+        <h1 className="t-display">Conversations</h1>
+        <p className="text-muted text-sm mt-1">Every session you have had, with its transcript and analysis.</p>
+      </header>
+
         <span className="sr-only">Loading your conversations…</span>
         <ListSkeleton rows={4} />
       </div>
@@ -160,7 +165,7 @@ export default function ConversationsPage() {
         />
       </div>
 
-      <div className="card">
+      <div className="card !p-5">
         <h2 className="font-semibold mb-1">What to work on next</h2>
         <p className="text-muted text-xs mb-3">
           {analysis.strengths.length > 0 && (
@@ -179,7 +184,7 @@ export default function ConversationsPage() {
         <Recommendations items={analysis.recommendations} />
       </div>
 
-      <div className="card">
+      <div className="card !p-5">
         <div className="flex justify-between items-center gap-3 flex-wrap mb-1">
           <h2 className="font-semibold">Your conversations</h2>
           <input
@@ -256,7 +261,7 @@ export default function ConversationsPage() {
       </div>
 
       {open && (
-        <div className="card">
+        <div className="card !p-5">
           <div className="flex justify-between items-start gap-4">
             <div>
               <h2 className="font-semibold">Conversation analysis</h2>

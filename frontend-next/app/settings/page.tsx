@@ -132,6 +132,11 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-xl space-y-4">
+      <header className="pb-1">
+        <h1 className="t-display">Settings</h1>
+        <p className="text-muted text-sm mt-1">Your profile, your coach&apos;s voice, and your account.</p>
+      </header>
+
       <h1 className="text-xl font-semibold">Account settings</h1>
 
       {note && (
@@ -144,7 +149,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="card space-y-3">
+      <div className="card !p-5 space-y-3">
         <h2 className="font-semibold">Profile</h2>
         <label className="text-muted text-xs block" htmlFor="name">
           Display name
@@ -250,7 +255,7 @@ export default function SettingsPage() {
 
       {signedInAs && (
         <>
-          <div className="card space-y-3">
+          <div className="card !p-5 space-y-3">
             <h2 className="font-semibold">Password</h2>
             <input
               className="btn text-left w-full"
@@ -277,7 +282,7 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          <div className="card space-y-2">
+          <div className="card !p-5 space-y-2">
             <h2 className="font-semibold">Sessions</h2>
             <p className="text-muted text-sm">
               Signs you out on every device, including this one.
@@ -289,7 +294,7 @@ export default function SettingsPage() {
         </>
       )}
 
-      <div className="card space-y-2">
+      <div className="card !p-5 space-y-2">
         <h2 className="font-semibold text-bad">Delete account</h2>
         <p className="text-muted text-sm">
           Permanently removes your profile and every conversation, score and reading attempt.

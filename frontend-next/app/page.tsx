@@ -10,14 +10,25 @@ import {
   type Plan,
   type ProgressOverview,
   type SkillPoint,
+  type Activity,
 } from "@/lib/types";
 import { useUser } from "./user-context";
 import { SkillRadar } from "@/components/SkillRadar";
+import { Icon } from "@/components/icons";
 import { StreakHeatmap } from "@/components/StreakHeatmap";
 import { ReadingSummary } from "@/components/ReadingSummary";
 import { DashboardSkeleton } from "@/components/Skeleton";
 import { OverallTrend } from "@/components/OverallTrend";
-import { LevelPicker, SkillBars } from "@/components/widgets";
+import { LevelPicker } from "@/components/widgets";
+import {
+  HeroCard,
+  LevelCard,
+  QuickStats,
+  QuoteStrip,
+  RecentActivity,
+  SkillGrid,
+  TodayPlan,
+} from "@/components/home";
 import {
   AssessmentsTable,
   GapsPanel,
@@ -33,6 +44,7 @@ export default function Dashboard() {
   const [trend, setTrend] = useState<SkillPoint[]>([]);
   const [gaps, setGaps] = useState<GapItem[]>([]);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [activity, setActivity] = useState<Activity | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,18 +52,22 @@ export default function Dashboard() {
     setErr(null);
     (async () => {
       try {
-        const [o, a, t, g, p] = await Promise.all([
+        const [o, a, t, g, p, act] = await Promise.all([
           api.overview(currentUser),
           api.assessments(currentUser),
           api.trend(currentUser),
           api.gaps(currentUser),
           api.plan(currentUser),
+          // Already served for the streak heatmap; the daily-goal ring reads the
+          // same per-day seconds rather than inventing a number to show.
+          api.activity(currentUser, 7),
         ]);
         setOv(o);
         setAssess(a);
         setTrend(t);
         setGaps(g);
         setPlan(p);
+        setActivity(act);
       } catch (e) {
         setErr((e as Error).message);
       }
@@ -68,16 +84,38 @@ export default function Dashboard() {
     await api.setLevel(currentUser, l);
     await refresh();
   };
+  // The app has no daily-target setting, so the ring needs one stated here
+  // rather than implied. Ten minutes is five of this app's two-minute
+  // conversations — long enough to be a day's practice, short enough to keep.
+  const DAILY_GOAL_MIN = 10;
+  const today = new Date().toISOString().slice(0, 10);
+  const secondsToday = activity?.cells.find((c) => c.date === today)?.seconds ?? 0;
+  const minutesToday = Math.floor(secondsToday / 60);
+  const goalPct = Math.min(100, Math.round((secondsToday / (DAILY_GOAL_MIN * 60)) * 100));
+
+  const overallPct = ov.latest_overall != null ? Math.round(ov.latest_overall) : 0;
+  const firstName =
+    (users.find((u) => u.user_id === currentUser)?.display_name ?? "").split(" ")[0] || "there";
+  const spark = trend.slice(-8).map((t) => Math.round(t.value));
+  const fresh = ov.assessments_count === 0;
+
   return (
     <div className="space-y-4">
+      <header className="flex items-end justify-between gap-4 flex-wrap pb-1">
+        <div>
+          <h1 className="t-display">Hello {firstName} 👋</h1>
+          <p className="text-muted text-sm mt-1">Ready to improve your English today?</p>
+        </div>
+      </header>
+
       {/* A learner with no history lands here first. A dashboard of zeros is a
           review surface being used as a landing surface, so give them the one
-          action that fills it — and hide the empty charts below. */}
-      {ov.assessments_count === 0 && (
-        <div className="card text-center py-8">
-          <h2 className="text-lg font-semibold mb-1">Ready when you are</h2>
-          <p className="text-muted text-sm mb-5">
-            Your scores, radar and streak fill in after your first conversation. It takes
+          action that fills it — and hide the empty panels below. */}
+      {fresh && (
+        <div className="card text-center py-9">
+          <h2 className="t-section text-lg mb-1">Ready when you are</h2>
+          <p className="text-muted text-sm mb-5 max-w-sm mx-auto">
+            Your scores, skills and streak fill in after your first conversation. It takes
             about two minutes.
           </p>
           <Link href="/practice" className="btn btn-primary inline-block px-6 py-3">
@@ -86,127 +124,98 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* The hero reads the same numbers as the tiles below it. It exists
-          because four identical tiles give the eye nowhere to land first — a
-          greeting, a ring and one button do. */}
-      {ov.assessments_count > 0 &&
-        (() => {
-          const pct = ov.latest_overall != null ? Math.round(ov.latest_overall) : 0;
-          const first =
-            (users.find((u) => u.user_id === currentUser)?.display_name ?? "").split(" ")[0] ||
-            "there";
-          return (
-            <div className="hero">
-              <div className="flex-1 min-w-[min(100%,260px)]">
-                <h2 className="text-xl font-semibold mb-1">Hello {first} 👋</h2>
-                <p className="text-muted text-sm mb-3.5">
-                  Level {ov.current_level} · {LEVEL_NAMES[ov.current_level]} · {ov.streak_days}-day
-                  streak
-                </p>
-                <div className="h-2.5 rounded-full bg-panel3 overflow-hidden mb-2">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-accent to-accent2"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <p className="text-muted text-sm mb-3.5">
-                  {ov.next_level != null
-                    ? `${Math.max(0, 100 - pct)}% to go until level ${ov.next_level}` +
-                      (eta != null ? ` · about ${eta} day${eta === 1 ? "" : "s"} at this pace` : "")
-                    : "You are at the top level — keep it sharp."}
-                </p>
-                <Link href="/practice" className="btn btn-primary inline-block px-5 py-2.5">
-                  🎙️ Continue practising
-                </Link>
-              </div>
-              <div
-                className="ring"
-                style={{ ["--p" as string]: pct }}
-                role="img"
-                aria-label={`Overall score ${pct} percent`}
-              >
-                <div className="relative text-center leading-tight">
-                  <b className="text-2xl block">{pct}%</b>
-                  <span className="text-[10.5px] text-muted uppercase tracking-wide">overall</span>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+      {!fresh && (
+        <>
+          <HeroCard
+            name={firstName}
+            goalPct={goalPct}
+            minutesToday={minutesToday}
+            goalMinutes={DAILY_GOAL_MIN}
+          />
 
-      {/* Level first: it sets the difficulty of everything below it, so it
-          belongs above the numbers rather than buried between charts. */}
-      <div className="card">
-        <div className="card-title">Your level — pick where you want to practice</div>
+          <LevelCard
+            level={ov.current_level}
+            levelName={LEVEL_NAMES[ov.current_level]}
+            pct={overallPct}
+            nextLevel={ov.next_level}
+            etaDays={eta}
+          />
+
+          <SkillGrid scores={ov.latest_scores} />
+
+          <TodayPlan plan={plan} />
+
+          <QuickStats
+            streak={ov.streak_days}
+            assessments={ov.assessments_count}
+            level={ov.current_level}
+            levelName={LEVEL_NAMES[ov.current_level]}
+            spark={spark}
+          />
+
+          <div className="grid xl:grid-cols-2 gap-4">
+            <RecentActivity rows={assess} />
+            <div className="card !p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="t-section">Overall progress</div>
+                <span className="t-caption">Last {trend.length} assessments</span>
+              </div>
+              <OverallTrend points={trend} />
+              {spark.length >= 2 && (
+                <p className="mt-3 rounded-xl border border-line surface px-3.5 py-2.5 text-[13px] flex items-center gap-2">
+                  <span className="icon-badge" style={{ ["--tint" as string]: "rgb(var(--c-good))", width: 26, height: 26 }}>
+                    <Icon.chart size={13} />
+                  </span>
+                  {spark[spark.length - 1] >= spark[0]
+                    ? "You're improving. Keep practising consistently."
+                    : "Scores dipped recently — a short session today usually turns it round."}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid xl:grid-cols-2 gap-4">
+            <div className="card !p-5">
+              <div className="t-section mb-3">Skill radar</div>
+              <SkillRadar scores={ov.latest_scores} />
+            </div>
+            <div className="card !p-5">
+              <div className="t-section mb-3">Study plan</div>
+              <PlanPanel plan={plan} />
+            </div>
+          </div>
+
+          <div className="card !p-5">
+            <div className="t-section mb-3">Top gaps</div>
+            <GapsPanel gaps={gaps} />
+          </div>
+
+          {currentUser && <ReadingSummary userId={currentUser} />}
+
+          <div className="card !p-5">
+            <div className="flex justify-between items-center mb-3 gap-3 flex-wrap">
+              <div className="t-section">Recent assessments</div>
+              <ReportButtons userId={currentUser} />
+            </div>
+            <AssessmentsTable rows={assess} />
+          </div>
+        </>
+      )}
+
+      {/* Level first for a new learner: it sets the difficulty of everything
+          else. For everyone else it sits below the review, since it is a
+          setting, not a reading. */}
+      <div className="card !p-5">
+        <div className="t-section mb-3">Your level — pick where you want to practice</div>
         <LevelPicker current={currentLevel} onSet={setLevel} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatTile
-          label="Level"
-          value={String(ov.current_level)}
-          /* When the chosen level and the scored level disagree, say which is
-             which rather than contradicting it two tiles later. */
-          sub={
-            ov.scored_level != null && ov.scored_level !== ov.current_level
-              ? `you chose this · scores say ${ov.scored_level}`
-              : LEVEL_NAMES[ov.current_level]
-          }
-        />
-        <StatTile label="Streak" value={`${ov.streak_days}d`} sub="keep it up" />
-        <StatTile
-          label="Overall"
-          value={ov.latest_overall != null ? Math.round(ov.latest_overall) + "%" : "—"}
-          sub={`${ov.assessments_count} assessments`}
-        />
-        <StatTile
-          label="To next level"
-          value={eta != null ? `${eta}d` : "—"}
-          sub={ov.next_level != null ? `reach level ${ov.next_level}` : "top level"}
-        />
-      </div>
-
-      {ov.assessments_count > 0 && (
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="card">
-          <div className="card-title">Skill radar</div>
-          <SkillRadar scores={ov.latest_scores} />
-        </div>
-        <div className="card">
-          <div className="card-title">Per-skill mastery</div>
-          <SkillBars scores={ov.latest_scores} />
-        </div>
-      </div>
+      {/* Last: a year of squares is a look-back, not something you act on. */}
+      {currentUser && !fresh && (
+        <StreakHeatmap userId={currentUser} currentStreak={ov.streak_days} />
       )}
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="card">
-          <div className="card-title">Overall trend</div>
-          <OverallTrend points={trend} />
-        </div>
-        <div className="card">
-          <div className="card-title">Study plan</div>
-          <PlanPanel plan={plan} />
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Top gaps</div>
-        <GapsPanel gaps={gaps} />
-      </div>
-
-      {currentUser && <ReadingSummary userId={currentUser} />}
-
-      <div className="card">
-        <div className="flex justify-between items-center mb-1">
-          <div className="card-title mb-0">Recent assessments</div>
-          <ReportButtons userId={currentUser} />
-        </div>
-        <AssessmentsTable rows={assess} />
-      </div>
-
-      {/* Last: a year of squares is a look-back, not something you act on. */}
-      {currentUser && <StreakHeatmap userId={currentUser} currentStreak={ov.streak_days} />}
+      <QuoteStrip />
     </div>
   );
 }

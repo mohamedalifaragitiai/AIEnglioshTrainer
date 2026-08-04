@@ -81,7 +81,7 @@ export default function AdminPage() {
 
   if (error) {
     return (
-      <div className="card">
+      <div className="card !p-5">
         <h2 className="font-semibold mb-1">Admin</h2>
         <p className="text-muted text-sm">{error}</p>
       </div>
@@ -94,6 +94,10 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
+      <header className="pb-1">
+        <h1 className="t-display">Admin</h1>
+        <p className="text-muted text-sm mt-1">Every learner on this install.</p>
+      </header>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="Learners" value={String(t.users)} sub={`${t.admins} admin`} />
         <StatTile
@@ -118,7 +122,7 @@ export default function AdminPage() {
         />
       </div>
 
-      <div className="card">
+      <div className="card !p-5">
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <h2 className="font-semibold flex-1">All learners</h2>
           <input

@@ -62,16 +62,6 @@ export function Header() {
     }
   };
 
-  const tab = (href: string, label: string) => (
-    <Link
-      href={href}
-      className={`px-3 py-2 shrink-0 border-b-2 ${
-        pathname === href ? "text-fg border-accent" : "text-muted border-transparent"
-      }`}
-    >
-      {label}
-    </Link>
-  );
 
   // On the login/signup pages there is nothing to pick, seed or navigate to yet.
   if (onAuthPage) {
@@ -153,20 +143,6 @@ export function Header() {
           </button>
         )}
       </div>
-      <nav className="mx-auto w-full max-w-[1680px] px-[clamp(14px,2.2vw,34px)] flex gap-1 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tab("/", "Dashboard")}
-        {tab("/practice", "Practice")}
-        {tab("/reading", "Reading")}
-        {tab("/conversations", "Conversations")}
-        {tab("/report", "Report")}
-        {/* Monitor is machine state — VRAM, the degradation ladder, model
-            status. That belongs to whoever runs the box, not to someone
-            practising English. With auth off there is only one user, so it
-            stays visible. */}
-        {operator && tab("/monitor", "Monitor")}
-        {/* Shown for admins only — /admin/overview is what actually enforces it. */}
-        {isAdmin && tab("/admin", "Admin")}
-      </nav>
     </header>
   );
 }

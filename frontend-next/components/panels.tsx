@@ -5,10 +5,10 @@ import { DIMENSIONS, type Assessment, type GapItem, type Plan } from "@/lib/type
 
 export function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="card">
-      <div className="text-muted text-sm">{label}</div>
-      <div className="text-3xl font-bold">{value}</div>
-      {sub && <div className="text-accent text-xs mt-0.5">{sub}</div>}
+    <div className="card !p-4">
+      <div className="t-label">{label}</div>
+      <div className="t-stat mt-1.5">{value}</div>
+      {sub && <div className="t-caption mt-1.5">{sub}</div>}
     </div>
   );
 }
@@ -19,18 +19,17 @@ export function GapsPanel({ gaps }: { gaps: GapItem[] }) {
     <div className="space-y-3">
       {gaps.slice(0, 5).map((g) => (
         <div key={g.skill}>
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between text-[13px]">
             <span className="capitalize">{g.skill}</span>
             <span className="text-muted">
               {Math.round(g.score)}/{Math.round(g.target)}
             </span>
           </div>
-          <div className="h-2 bg-panel2 rounded overflow-hidden">
-            <div
-              className="h-full"
+          <div className="track mt-1.5">
+            <i
               style={{
                 width: `${g.score}%`,
-                background: "linear-gradient(90deg,rgb(var(--c-bad)),rgb(var(--c-good)))",
+                background: `var(--sk-${g.skill}, var(--grad-accent))`,
               }}
             />
           </div>

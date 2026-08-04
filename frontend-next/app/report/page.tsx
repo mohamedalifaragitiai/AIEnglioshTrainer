@@ -39,28 +39,57 @@ export default function Report() {
       ? `~${ov.estimated_days_to_next_level}d to level ${ov.next_level}`
       : "top level";
 
+  const overall = ov.latest_overall != null ? Math.round(ov.latest_overall) : null;
+  // Encouraging, but not dishonest: the words track the number.
+  const headline =
+    overall == null
+      ? "Your first score is one conversation away"
+      : overall >= 85
+        ? "Excellent work."
+        : overall >= 70
+          ? "Good job — you are being understood."
+          : overall >= 55
+            ? "Solid progress, keep going."
+            : "Early days — every session moves this.";
+
   return (
     <div className="space-y-4">
-      <div className="card flex flex-wrap justify-between items-start gap-3">
-        <div>
-          <div className="card-title mb-1">Coach&apos;s report</div>
-          <div className="text-muted text-sm">
-            <b className="text-[var(--text)]">{ov.display_name}</b> · Level {ov.current_level} (
-            {LEVEL_NAMES[ov.current_level]}) · Overall{" "}
-            {ov.latest_overall != null ? Math.round(ov.latest_overall) + "%" : "—"} · {eta} ·{" "}
-            {ov.assessments_count} assessments
+      <header className="pb-1">
+        <h1 className="t-display">Your report</h1>
+        <p className="text-muted text-sm mt-1">
+          Everything the coach has measured, and what to do next.
+        </p>
+      </header>
+
+      <section className="hero">
+        <div
+          className="ring"
+          style={{ ["--p" as string]: overall ?? 0, ["--size" as string]: "132px" }}
+          role="img"
+          aria-label={`Overall score ${overall ?? 0} percent`}
+        >
+          <div className="relative text-center leading-tight">
+            <b className="block text-[30px] font-bold tabular-nums">{overall ?? "—"}</b>
+            <span className="t-label block mt-1">overall</span>
           </div>
         </div>
-        <ReportButtons userId={currentUser} />
-      </div>
+        <div className="flex-1 min-w-[min(100%,260px)]">
+          <h2 className="t-display mb-1.5">{headline}</h2>
+          <p className="text-muted text-sm mb-4">
+            <b className="text-fg">{ov.display_name}</b> · Level {ov.current_level} ·{" "}
+            {LEVEL_NAMES[ov.current_level]} · {eta} · {ov.assessments_count} assessments
+          </p>
+          <ReportButtons userId={currentUser} />
+        </div>
+      </section>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="card">
-          <div className="card-title">Per-skill mastery</div>
+        <div className="card !p-5">
+          <div className="t-section mb-3">Per-skill mastery</div>
           <SkillBars scores={ov.latest_scores} />
         </div>
-        <div className="card">
-          <div className="card-title">Strengths &amp; focus</div>
+        <div className="card !p-5">
+          <div className="t-section mb-3">Strengths &amp; focus</div>
           <div className="mb-3">
             <span className="pill bg-good/15 text-good">Strengths</span>
             <div className="mt-2 flex gap-2 flex-wrap">
@@ -96,8 +125,8 @@ export default function Report() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="card">
-          <div className="card-title">Corrections &amp; suggestions</div>
+        <div className="card !p-5">
+          <div className="t-section mb-3">Corrections &amp; suggestions</div>
           {fb.corrections.length ? (
             fb.corrections.slice(0, 6).map((c, i) => (
               <div key={i} className="text-sm my-2">
@@ -121,8 +150,8 @@ export default function Report() {
             </div>
           )}
         </div>
-        <div className="card">
-          <div className="card-title">Your plan</div>
+        <div className="card !p-5">
+          <div className="t-section mb-3">Your plan</div>
           <PlanPanel plan={plan} />
         </div>
       </div>

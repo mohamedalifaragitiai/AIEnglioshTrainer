@@ -330,7 +330,12 @@ export default function ReadingPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card">
+      <header className="pb-1">
+        <h1 className="t-display">Reading</h1>
+        <p className="text-muted text-sm mt-1">Read the passage aloud. Accuracy and pace are measured word by word.</p>
+      </header>
+
+      <div className="card !p-5">
         <div className="flex justify-between items-center gap-3 flex-wrap">
           <h2 className="font-semibold">Reading practice</h2>
           <div className="flex items-center gap-2">
@@ -360,7 +365,7 @@ export default function ReadingPage() {
         </p>
       </div>
 
-      <div className="card">
+      <div className="card !p-5">
         <h3 className="font-semibold mb-2">{passage?.title ?? "Passage"}</h3>
         <p className="text-lg leading-relaxed">{passage?.text ?? "Loading…"}</p>
         <div className="flex items-center gap-4 mt-5">
@@ -461,7 +466,7 @@ export default function ReadingPage() {
       </div>
 
       {result && (
-        <div className="card">
+        <div className="card !p-5">
           <div className="flex justify-between items-center">
             <h3 className="font-semibold">Reading result</h3>
             <span className={`px-3 py-1.5 rounded-lg font-bold ${band(result.accuracy)}`}>
@@ -525,7 +530,7 @@ export default function ReadingPage() {
       )}
 
       {history && history.attempts.length > 0 && (
-        <div className="card">
+        <div className="card !p-5">
           <h3 className="font-semibold mb-3">Your reading over time</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile
