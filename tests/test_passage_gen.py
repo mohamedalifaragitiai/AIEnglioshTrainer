@@ -8,6 +8,7 @@ still works when the model is unavailable.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -20,6 +21,7 @@ from backend.coldpath.passage_gen import (
     parse,
     readability,
 )
+from backend.coldpath.reading import PASSAGES
 
 BEGINNER = (
     "I wake up early. I eat bread and drink tea. Then I walk to the shop near my "
@@ -214,3 +216,58 @@ async def test_a_reasoning_block_is_not_read_as_the_passage():
     got = await PassageService(llm, FakeGuard(), Settings()).get(0)
 
     assert got["generated"] is True and "think" not in got["text"]
+
+
+class LevelAwareLLM:
+    """Answers with a text that actually belongs at the level being asked for.
+
+    Reads the level back out of the prompt, which also pins that the prompt says
+    which level it wants — a fake returning one beginner paragraph for every
+    request passes nothing above level 0, as the first version of these tests
+    discovered.
+    """
+
+    def __init__(self, broken_levels: set[int] | None = None):
+        self.broken = broken_levels or set()
+        self.prompts: list[str] = []
+
+    async def chat(self, messages, *, path="hot", max_tokens=512, temperature=0.7, extra=None):
+        prompt = messages[-1]["content"]
+        self.prompts.append(prompt)
+        level = int(re.search(r"at level (\d) of 5", prompt).group(1))
+        if level in self.broken:
+            return "nonsense"
+        text = PASSAGES[level][0]["text"]
+        return as_reply(PASSAGES[level][0]["title"], text)
+
+
+@pytest.mark.asyncio
+async def test_prewarm_fills_every_level_once():
+    llm = LevelAwareLLM()
+    svc = PassageService(llm, FakeGuard(), Settings())
+
+    await svc.prewarm()
+
+    assert len(llm.prompts) == len(SPECS)  # one each, not a burst
+    assert all(svc._pool.get(lvl) for lvl in SPECS)
+
+
+@pytest.mark.asyncio
+async def test_prewarm_stops_rather_than_fighting_a_loaded_box():
+    llm = FakeLLM([as_reply("M", BEGINNER)] * len(SPECS))
+    svc = PassageService(llm, FakeGuard(level=PassageService.PAUSE_AT_LEVEL), Settings())
+
+    await svc.prewarm()
+
+    assert llm.prompts == []
+
+
+@pytest.mark.asyncio
+async def test_prewarm_survives_a_level_that_will_not_generate():
+    # One bad level must not cost the other five their warm pool.
+    llm = LevelAwareLLM(broken_levels={2})
+    svc = PassageService(llm, FakeGuard(), Settings())
+
+    await svc.prewarm()
+
+    assert svc._pool.get(0) and svc._pool.get(5)

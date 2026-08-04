@@ -12,6 +12,8 @@ No models are loaded yet. Model loading (Phase 2) will go through
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -34,6 +36,7 @@ from backend.api import sessions as sessions_router
 from backend.api import users as users_router
 from backend.api.deps import request_token, resolve_token
 from backend.coldpath.factory import build_worker
+from backend.coldpath.passage_gen import PassageService
 from backend.core.event_bus import EventBus
 from backend.core.logging import configure_logging, get_logger
 from backend.core.metrics import CONTENT_TYPE, render_metrics
@@ -119,6 +122,15 @@ async def lifespan(app: FastAPI):
     app.state.event_bus = bus
     app.state.hotpath_stages = stages
     app.state.coldpath_worker = worker
+
+    # Reading passages: build the generator here so the first learner to open
+    # the reading tab is not the one who pays for a cold pool, and fill it in
+    # the background — startup must not wait on an LLM writing paragraphs, and
+    # an install with no model must still start.
+    passages = PassageService(llm_client, guard, settings)
+    app.state.passage_service = passages
+    prewarm_task = asyncio.create_task(passages.prewarm())
+
     log.info(
         "app_started",
         host=settings.app_host,
@@ -129,6 +141,9 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        prewarm_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await prewarm_task
         await worker.stop()
         await bus.drain()
         await registry.unload_all()

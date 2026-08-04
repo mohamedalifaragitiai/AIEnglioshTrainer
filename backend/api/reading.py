@@ -32,10 +32,11 @@ class ReadingAttempt(BaseModel):
 
 
 def _passages(request: Request) -> PassageService:
-    """The generator, built once per process and kept on app state.
+    """The generator startup built and pre-warmed, kept on app state.
 
-    Lazily, because it needs the LLM client that startup wires up, and because a
-    process that never serves a reading request should never build a pool.
+    Built here only as a fallback: a TestClient that skips the lifespan, or an
+    embedding that never ran it, still gets a working endpoint — with an empty
+    pool, which the curated floor covers.
     """
     svc = getattr(request.app.state, "passage_service", None)
     if svc is None:

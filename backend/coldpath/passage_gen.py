@@ -337,6 +337,41 @@ class PassageService:
         self._schedule_refill(level)
         return got
 
+    async def prewarm(self) -> None:
+        """Fill every level's pool once, so nobody waits for the first passage.
+
+        Sequential on purpose. Generating six passages at once pushes VRAM
+        through the ceiling on this box — measured: the guard went to level 4
+        and started refusing the very work that caused it. One at a time is
+        slower in wall-clock and finishes, which is the trade that matters when
+        nothing is waiting on it.
+
+        Best effort throughout: a level that will not generate is left to the
+        curated floor rather than retried, and a failure here must never stop
+        the app from starting.
+        """
+        if not self._enabled():
+            log.info("passage_prewarm_skipped", reason="generation disabled or unavailable")
+            return
+        made = 0
+        for level in sorted(SPECS):
+            if self._pressure() >= self.PAUSE_AT_LEVEL:
+                log.info(
+                    "passage_prewarm_paused",
+                    passage_level=level,
+                    degradation=self._pressure(),
+                )
+                break
+            try:
+                passage = await self._generate(level)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("passage_prewarm_failed", passage_level=level, error=str(exc))
+                continue
+            if passage is not None:
+                self._pool.setdefault(level, []).append(passage)
+                made += 1
+        log.info("passage_prewarm_done", levels_ready=made, of=len(SPECS))
+
     def warm(self, level: int) -> None:
         """Fill this level's pool in the background, without blocking a caller."""
         if self._enabled():
